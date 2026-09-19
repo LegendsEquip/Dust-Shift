@@ -1,0 +1,2477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Dust Shift - a 3D factory housekeeping game from Legends Equipment. Drag a central vacuum hose to the wall drops and keep the plant off the combustible dust limit for ten minutes.">
+<meta name="color-scheme" content="dark">
+<title>Dust Shift</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;900&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+  :root{
+    --ink:#0D1117; --panel:#161C24; --panel-2:#1E262F;
+    --steel:#8C939B; --steel-dim:#5D656E;
+    --orange:#FF6A13; --yellow:#F2B01E; --lime:#C9E265; --red:#E23B2E;
+    --text:#E8EBEE; --text-dim:#9AA3AC; --line:rgba(140,147,155,.28);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--ink);color:var(--text);font-family:'Barlow',system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
+  canvas{display:block}
+  #app{position:fixed;inset:0}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5;opacity:0;transition:opacity .4s}
+  #hud.live{opacity:1}
+
+  .plate{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:3px;
+    box-shadow:0 6px 22px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);position:relative}
+  .plate::before,.plate::after{content:"";position:absolute;width:4px;height:4px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%,#b8bfc7,#4a5158);top:5px}
+  .plate::before{left:5px} .plate::after{right:5px}
+
+  .eyebrow{font-family:'Saira Condensed',sans-serif;font-weight:700;letter-spacing:.18em;text-transform:uppercase;font-size:10px;color:var(--steel)}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+
+  #status{position:absolute;top:14px;left:14px;padding:10px 14px 12px;min-width:252px}
+  #status .row{display:flex;align-items:baseline;gap:10px;justify-content:space-between}
+  #clock{font-family:'Saira Condensed',sans-serif;font-weight:900;font-size:31px;line-height:1.05}
+  #dangerWrap{margin-top:9px}
+  .bar{height:12px;background:#0A0E13;border:1px solid var(--line);border-radius:2px;overflow:hidden;position:relative}
+  .bar i{display:block;height:100%;width:0%;transition:width .12s linear}
+  #dangerFill{background:linear-gradient(90deg,#4C8C3F,#F2B01E 55%,#E23B2E)}
+  #upWrap{margin-top:9px}
+  #upFill{background:linear-gradient(90deg,#B44A0F,#FF6A13)}
+  #upWrap.ready #upFill{background:var(--lime)}
+  #upWrap.ready .eyebrow{color:var(--lime)}
+  .ticks{position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 19px,rgba(0,0,0,.55) 19px 20px)}
+  .lbl{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px}
+  .lbl b{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);font-weight:400}
+
+  #specs{position:absolute;top:14px;right:14px;padding:10px 14px;min-width:190px}
+  #specs dl{margin:6px 0 0;display:grid;grid-template-columns:1fr auto;gap:3px 12px;font-size:12px}
+  #specs dt{color:var(--text-dim)} #specs dd{margin:0;font-family:'JetBrains Mono',monospace;font-size:12px}
+
+  #ctrls{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}
+  #hud:not(.live) #ctrls{pointer-events:none}
+  .ctrl{display:flex;align-items:center;gap:8px;padding:8px 14px;cursor:pointer;
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);
+    border-radius:3px;color:var(--text-dim);font-family:'Saira Condensed',sans-serif;font-weight:700;
+    letter-spacing:.1em;text-transform:uppercase;font-size:11.5px;
+    transition:color .12s,border-color .12s,background .12s}
+  .ctrl:hover{color:var(--text);border-color:var(--steel)}
+  .ctrl:active{transform:translateY(1px)}
+  .ctrl:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+  #quitBtn:hover{color:var(--red);border-color:var(--red)}
+  .go.ghost{background:transparent;color:var(--text-dim);border:1px solid var(--line)}
+  .go.ghost:hover{color:var(--red);border-color:var(--red);filter:none}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  #pauseScreen .brief{max-width:600px;margin:0 auto}
+  #eventChip{position:absolute;top:206px;left:14px;display:none;align-items:center;gap:9px;padding:7px 13px;
+    background:rgba(226,59,46,.16);border:1px solid var(--red);border-left:3px solid var(--red);border-radius:2px;
+    font-family:'Saira Condensed',sans-serif;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+    font-size:12px;color:#FFD8D3}
+  #eventChip.show{display:flex}
+  .abil{position:absolute;left:14px;display:none;align-items:center;gap:9px;
+    padding:8px 14px 8px 9px;background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--line);border-left:3px solid var(--steel-dim);border-radius:3px;
+    font-family:'Saira Condensed',sans-serif;font-weight:700;letter-spacing:.09em;
+    text-transform:uppercase;font-size:12px;color:var(--text-dim)}
+  #norrisChip{bottom:18px}
+  #fiberChip{bottom:58px}
+  .abil.show{display:flex}
+  .abil b{display:grid;place-items:center;width:22px;height:22px;flex:none;border-radius:3px;
+    background:#0A0E13;border:1px solid var(--line);font-family:'JetBrains Mono',monospace;
+    font-size:12px;color:var(--text-dim)}
+  .abil.ready{border-left-color:var(--lime);color:var(--lime)}
+  .abil.ready b{color:var(--lime);border-color:var(--lime)}
+  .abil.live{border-left-color:var(--orange);color:var(--orange);box-shadow:0 0 22px rgba(255,106,19,.45)}
+  .abil.live b{color:var(--orange);border-color:var(--orange)}
+  #eventChip .dot{width:8px;height:8px;border-radius:50%;background:var(--red);flex:none;animation:blink 1s steps(2,end) infinite}
+  @keyframes blink{50%{opacity:.12}}
+  #perks{position:absolute;top:182px;right:14px;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+  .perk{display:flex;align-items:center;gap:7px;padding:4px 9px;font-size:11px;background:rgba(22,28,36,.92);
+    border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:2px;
+    font-family:'Saira Condensed',sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+  .perk .lv{font-family:'JetBrains Mono',monospace;color:var(--orange);font-size:10px}
+
+  #hosebar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:8px 14px 10px;width:336px}
+  #hoseState{font-family:'Saira Condensed',sans-serif;font-weight:900;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel)}
+  #hoseState.on{color:var(--lime)}
+  #hoseFill{background:linear-gradient(90deg,#3E7FB8,#5FA8D8)}
+  #hoseFill.taut{background:linear-gradient(90deg,#E2A22E,#E23B2E)}
+  #prompt{position:absolute;bottom:88px;left:50%;transform:translateX(-50%);font-family:'Saira Condensed',sans-serif;
+    font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:13px;color:var(--ink);background:var(--yellow);
+    padding:5px 14px;border-radius:2px;opacity:0;transition:opacity .15s}
+  #prompt.show{opacity:1}
+  #prompt.bad{background:var(--red);color:#fff}
+  kbd{font-family:'JetBrains Mono',monospace;background:rgba(0,0,0,.32);border:1px solid rgba(0,0,0,.35);
+    border-bottom-width:2px;border-radius:3px;padding:0 4px;font-size:11px}
+
+  #mapPlate{position:absolute;bottom:16px;right:14px;padding:8px 8px 6px}
+  #map{display:block;border:1px solid var(--line);background:#0A0E13;border-radius:2px}
+  #mapPlate .eyebrow{display:block;margin-bottom:5px}
+
+  #toasts{position:absolute;top:46%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;gap:6px;align-items:center}
+  .toast{font-family:'Saira Condensed',sans-serif;font-weight:900;font-size:26px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--yellow);text-shadow:0 3px 14px rgba(0,0,0,.9);animation:pop 1.6s ease-out forwards;white-space:nowrap}
+  @keyframes pop{0%{opacity:0;transform:translateY(14px) scale(.92)}14%{opacity:1;transform:none}70%{opacity:1}100%{opacity:0;transform:translateY(-26px)}}
+
+  .screen{position:fixed;inset:0;z-index:20;display:none;place-items:center;
+    background:radial-gradient(ellipse at 50% 40%,rgba(20,26,34,.88),rgba(6,9,12,.97));backdrop-filter:blur(3px)}
+  .screen.show{display:grid}
+  .wrap{width:min(1000px,94vw);max-height:96vh;overflow:auto;padding:8px}
+  .brief{background:linear-gradient(180deg,#1A222B,#121820);border:1px solid var(--line);border-top:3px solid var(--orange);
+    border-radius:4px;padding:30px 34px 26px;box-shadow:0 30px 80px rgba(0,0,0,.7)}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+  .mark{width:30px;height:30px;flex:none;border-radius:3px;background:var(--orange);display:grid;place-items:center;
+    font-family:'Saira Condensed',sans-serif;font-weight:900;color:#12181F;font-size:18px}
+  .brand b{font-family:'Saira Condensed',sans-serif;font-weight:700;letter-spacing:.2em;font-size:11.5px;text-transform:uppercase;color:var(--steel)}
+  h1{font-family:'Saira Condensed',sans-serif;font-weight:900;font-size:clamp(40px,7vw,70px);line-height:.92;margin:0 0 8px;text-wrap:balance}
+  h1 em{font-style:normal;color:var(--orange)}
+  .tag{font-size:15px;color:var(--text-dim);max-width:64ch;margin:0 0 22px;line-height:1.5}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:18px 28px;margin-bottom:24px}
+  .cols h3{font-family:'Saira Condensed',sans-serif;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin:0 0 8px;font-weight:700}
+  .cols ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--text-dim);line-height:1.4}
+  .cols li b{color:var(--text);font-weight:600}
+  button.go{font-family:'Saira Condensed',sans-serif;font-weight:900;font-size:19px;letter-spacing:.14em;text-transform:uppercase;
+    background:var(--orange);color:#12181F;border:0;padding:13px 30px;border-radius:3px;cursor:pointer;transition:transform .1s,filter .15s}
+  button.go:hover{filter:brightness(1.12)}
+  button.go:active{transform:translateY(1px)}
+  button.go:focus-visible,.rcard:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+  .foot{margin-top:20px;font-size:11.5px;color:var(--steel-dim);border-top:1px solid var(--line);padding-top:12px;line-height:1.55;max-width:86ch}
+
+  #rewardScreen .head{text-align:center;margin-bottom:20px}
+  #rewardScreen h2{font-family:'Saira Condensed',sans-serif;font-weight:900;font-size:clamp(28px,5vw,44px);margin:4px 0}
+  #rewardScreen .sub{color:var(--text-dim);font-size:14px;margin:0}
+  .rgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:16px}
+  .rcard{text-align:left;cursor:pointer;background:linear-gradient(180deg,#1B232C,#131920);border:1px solid var(--line);
+    border-top:3px solid var(--steel-dim);border-radius:4px;padding:18px;color:var(--text);font:inherit;
+    display:flex;flex-direction:column;transition:transform .12s,border-color .12s,box-shadow .12s}
+  .rcard:hover{transform:translateY(-4px);border-top-color:var(--orange);box-shadow:0 18px 40px rgba(0,0,0,.6)}
+  .rcard .num{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--steel-dim)}
+  .rcard .ico{margin:10px 0 12px;height:34px}
+  .rcard h4{font-family:'Saira Condensed',sans-serif;font-weight:900;font-size:23px;margin:0 0 2px}
+  .rcard .lvl{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--orange);margin-bottom:9px}
+  .rcard p{margin:0 0 14px;font-size:13.5px;color:var(--text-dim);line-height:1.45}
+  .rcard .spec{margin-top:auto;border-top:1px solid var(--line);padding-top:9px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--lime)}
+  #endStat{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:14px;margin:0 0 22px}
+  #endStat div{border-left:2px solid var(--orange);padding-left:10px}
+  #endStat span{display:block;font-family:'JetBrains Mono',monospace;font-size:22px}
+  #endStat em{font-style:normal;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--steel)}
+
+  #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:15}
+  #vig{position:fixed;inset:0;pointer-events:none;z-index:4;box-shadow:inset 0 0 190px rgba(0,0,0,.72);transition:box-shadow .35s}
+  #vig.alarm{box-shadow:inset 0 0 230px rgba(226,59,46,.8)}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+  @media (max-width:760px){#perks,#mapPlate{display:none}#status{min-width:200px}}
+</style>
+
+</head>
+<body>
+<div id="app"></div>
+<div id="vig"></div>
+<div id="flash"></div>
+
+<div id="hud">
+  <div id="status" class="plate">
+    <div class="row">
+      <div class="eyebrow">Shift remaining</div>
+      <div class="eyebrow mono" id="cleaned">0 LB RECOVERED</div>
+    </div>
+    <div id="clock" class="mono">10:00</div>
+    <div id="dangerWrap">
+      <div class="lbl"><span class="eyebrow">Combustible dust level</span><b id="dangerPct">0%</b></div>
+      <div class="bar"><i id="dangerFill"></i><div class="ticks"></div></div>
+    </div>
+    <div id="upWrap">
+      <div class="lbl"><span class="eyebrow">Next upgrade</span><b id="upPct">0%</b></div>
+      <div class="bar"><i id="upFill"></i></div>
+    </div>
+  </div>
+
+  <div id="specs" class="plate">
+    <div class="eyebrow">Unit spec</div>
+    <dl>
+      <dt>Hose run</dt><dd id="sHose">50 ft</dd>
+      <dt>Hose ID</dt><dd id="sBore">1.50 in.</dd>
+      <dt>Airflow</dt><dd id="sCfm">320 CFM</dd>
+      <dt>Lift</dt><dd id="sLift">95 in.</dd>
+      <dt>Drops live</dt><dd id="sDrops">3</dd>
+      <dt>Tool heads</dt><dd id="sReach">1</dd>
+    </dl>
+  </div>
+
+  <div id="ctrls">
+    <button id="pauseBtn" class="ctrl" type="button" title="Pause (P)">
+      <svg width="11" height="12" viewBox="0 0 11 12" aria-hidden="true"><rect x="0" y="0" width="4" height="12" fill="currentColor"/><rect x="7" y="0" width="4" height="12" fill="currentColor"/></svg>
+      Pause
+    </button>
+    <button id="quitBtn" class="ctrl" type="button" title="End shift (Esc)">
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/></svg>
+      Quit
+    </button>
+  </div>
+
+  <div id="eventChip"><span class="dot"></span><span id="eventText"></span></div>
+  <div id="norrisChip" class="abil"><b>Q</b><span id="norrisText">Suck Norris ready</span></div>
+  <div id="fiberChip" class="abil"><b>R</b><span id="fiberText">FiberLight ready</span></div>
+
+  <div id="perks"></div>
+  <div id="prompt"></div>
+
+  <div id="hosebar" class="plate">
+    <div class="lbl"><span id="hoseState">Hose stowed &mdash; find a drop</span><b id="hosePct" class="mono">0 / 50 ft</b></div>
+    <div class="bar"><i id="hoseFill"></i></div>
+  </div>
+
+  <div id="mapPlate" class="plate">
+    <span class="eyebrow">Plant floor</span>
+    <canvas id="map" width="188" height="130"></canvas>
+  </div>
+
+  <div id="toasts"></div>
+</div>
+
+<div class="screen show" id="startScreen">
+  <div class="wrap"><div class="brief">
+    <div class="brand"><div class="mark">L</div><b>Legends Equipment &middot; Central Vacuum Systems</b></div>
+    <h1>Dust <em>Shift</em></h1>
+    <p class="tag">Third shift at the plant. Combustible dust is settling faster than the crew can sweep it, and you're the one on the hose. Drag it to a wall drop, plug in, pull the floor clean. Last ten minutes and the plant makes it to morning.</p>
+    <div class="cols">
+      <div><h3>Controls</h3><ul>
+        <li><b><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></b> walk &mdash; you turn as you go, and the wand holds that direction</li>
+        <li><b><kbd>E</kbd></b> connect at a drop &mdash; and walk back to it to unplug</li>
+        <li><b>Hold click</b> or <b><kbd>Space</kbd></b> to vacuum</li>
+        <li><b><kbd>Q</kbd></b> and <b><kbd>R</kbd></b> fire the Suck Norris and FiberLight, once earned</li>
+        <li><b><kbd>M</kbd></b> mutes &mdash; <b><kbd>P</kbd></b> pauses &mdash; <b><kbd>Esc</kbd></b> ends the shift</li>
+      </ul></div>
+      <div><h3>The job</h3><ul>
+        <li>Suction only runs while you're <b>plugged into a drop</b>.</li>
+        <li>Walk too far and the hose goes <b>taut</b> &mdash; it won't stretch.</li>
+        <li>Every pile left on the floor drives the <b>dust level</b> up.</li>
+        <li><b>Lift trucks</b> and the manager's <b>golf cart</b> will crush your hose and flatten you. Stay out of the lanes.</li>
+        <li>At 100% the alarm sounds. Get out before it goes.</li>
+      </ul></div>
+      <div><h3>Upgrades</h3><ul>
+        <li>Every pound you recover fills the <b>upgrade meter</b>. Fill it and the rep shows up with three cards.</li>
+        <li>Clearing a whole <b>spill</b> drops a bonus straight into the meter.</li>
+        <li>Hose length and hose size, extra drops, horsepower, <b>Dust&nbsp;Dozer</b>, <b>Pile&nbsp;Diver</b>, <b>FiberLight</b>, and coffee. They stack.</li>
+      </ul></div>
+    </div>
+    <button class="go" id="startBtn">Clock in</button>
+    <p class="foot">A Legends Equipment production. Every upgrade in here is a real thing we sell: hose runs, additional drops, larger separators and turbine packages, and the tool kits that go on the end of the hose.</p>
+  </div></div>
+</div>
+
+<div class="screen" id="rewardScreen">
+  <div class="wrap">
+    <div class="head">
+      <div class="eyebrow">Upgrade meter full &middot; Legends Equipment</div>
+      <h2 id="rewardTitle">Pick one card</h2>
+      <p class="sub">Press <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> or click. It stays with you for the rest of the shift.</p>
+    </div>
+    <div class="rgrid" id="rewardGrid"></div>
+  </div>
+</div>
+
+<div class="screen" id="pauseScreen">
+  <div class="wrap"><div class="brief">
+    <div class="brand"><div class="mark">L</div><b>Legends Equipment &middot; Central Vacuum Systems</b></div>
+    <h1 id="pauseTitle">Shift <em>paused</em></h1>
+    <p class="tag" id="pauseText">Nothing is accumulating while you're stopped. The clock is holding.</p>
+    <div id="pauseStats"></div>
+    <div class="btnrow">
+      <button class="go" id="resumeBtn">Resume shift</button>
+      <button class="go ghost" id="endBtn">End shift</button>
+    </div>
+  </div></div>
+</div>
+
+<div class="screen" id="endScreen">
+  <div class="wrap"><div class="brief">
+    <div class="brand"><div class="mark">L</div><b>Legends Equipment &middot; Central Vacuum Systems</b></div>
+    <h1 id="endTitle">Shift over</h1>
+    <p class="tag" id="endText"></p>
+    <div id="endStat"></div>
+    <button class="go" id="againBtn">Run it again</button>
+    <p class="foot">Housekeeping is a system, not a chore. Legends Equipment designs and builds central vacuum housekeeping systems for large industrial plants &mdash; properly sized tubing, drops where the crew actually works, and the horsepower to carry it all the way back to the separator.</p>
+  </div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+const T = THREE;
+const HX = 32, HZ = 22, WH = 8;
+const SHIFT = 600, SEG = 0.62, BAG_T = 480;
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const FT = u => Math.round(u*2);
+
+/* ===================== STATE ===================== */
+let S;
+function freshState(){
+  return {
+    running:false, over:false, escaping:false, paused:false, t:0, danger:0, cleaned:0,
+    hoseLen:25, suction:1.15, speed:7.2, reach:2.0, dozer:0, fiber:0, diver:0, dha:0, bore:0, energy:0, hound:0,
+    norris:0, norrisT:0, norrisCd:0, fiberT:0, fiberCd:0,
+    series:0, stun:0, forkTimer:rnd(72,96), forkRuns:0, cartTimer:rnd(48,80),
+    prog:0, progNeed:7,
+    dropCount:3, perks:{}, spillTimer:16, pileTimer:6, spillsCleared:0,
+    connected:-1, taut:0, needLen:0, vacuuming:false, shake:0, escT:0,
+    bagWarned:false, bagDropped:false, bagSpilled:false
+  };
+}
+
+/* ===================== AUDIO =====================
+   Everything here is synthesized — no files. Two buses: music and effects,
+   both through a compressor so the mix never gets harsh. */
+let AC=null, master=null, musicBus=null, sfxBus=null;
+let humGain=null, humFilt=null, sirenOsc=null, noiseBuf=null, muted=false;
+
+const NOTE = m => 440*Math.pow(2,(m-69)/12);
+
+function makeNoise(){
+  const len=Math.floor(AC.sampleRate*2), b=AC.createBuffer(1,len,AC.sampleRate), d=b.getChannelData(0);
+  let last=0;
+  for(let i=0;i<len;i++){ const w=Math.random()*2-1; last=(last+.022*w)/1.022; d[i]=last*3.4; }
+  return b;
+}
+function audioInit(){
+  if(AC) return;
+  try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+  const comp=AC.createDynamicsCompressor();
+  comp.threshold.value=-14; comp.knee.value=22; comp.ratio.value=4;
+  comp.attack.value=.006; comp.release.value=.22;
+  comp.connect(AC.destination);
+  master=AC.createGain(); master.gain.value=.85; master.connect(comp);
+  musicBus=AC.createGain(); musicBus.gain.value=.30; musicBus.connect(master);
+  sfxBus=AC.createGain(); sfxBus.gain.value=.85; sfxBus.connect(master);
+  noiseBuf=makeNoise();
+
+  // vacuum airflow: filtered noise, not a buzzing oscillator
+  humGain=AC.createGain(); humGain.gain.value=0; humGain.connect(sfxBus);
+  humFilt=AC.createBiquadFilter(); humFilt.type='bandpass';
+  humFilt.frequency.value=430; humFilt.Q.value=1.1; humFilt.connect(humGain);
+  const hp=AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=90; hp.connect(humFilt);
+  const src=AC.createBufferSource(); src.buffer=noiseBuf; src.loop=true;
+  src.connect(hp); src.start();
+}
+function humSet(v){
+  if(!AC||!humGain) return;
+  v=clamp(v,0,2.2);
+  humGain.gain.setTargetAtTime(v*.075, AC.currentTime, .09);
+  humFilt.frequency.setTargetAtTime(400+v*480, AC.currentTime, .12);
+}
+function blip(freq,dur,type,vol){
+  if(!AC) return;
+  const t=AC.currentTime, d=dur||.18;
+  const o=AC.createOscillator(), g=AC.createGain(), f=AC.createBiquadFilter();
+  o.type=(type==='sawtooth')?'triangle':(type||'triangle');   // saw reads as harsh here
+  o.frequency.value=freq;
+  f.type='lowpass'; f.frequency.value=2400; f.Q.value=.6;
+  g.gain.setValueAtTime(.0001,t);
+  g.gain.exponentialRampToValueAtTime(Math.max(.002,(vol||.18)*.8),t+.014);
+  g.gain.exponentialRampToValueAtTime(.0001,t+d);
+  o.connect(f); f.connect(g); g.connect(sfxBus);
+  o.start(t); o.stop(t+d+.04);
+}
+function noiseBurst(dur,vol,cut){
+  if(!AC) return;
+  const t=AC.currentTime, d=dur||.3;
+  const s=AC.createBufferSource(); s.buffer=noiseBuf;
+  const f=AC.createBiquadFilter(); f.type='lowpass'; f.frequency.value=cut||900;
+  const g=AC.createGain();
+  g.gain.setValueAtTime((vol||.5)*.8,t);
+  g.gain.exponentialRampToValueAtTime(.0001,t+d);
+  s.connect(f); f.connect(g); g.connect(sfxBus);
+  s.start(t); s.stop(t+d+.05);
+}
+function sirenStart(){
+  if(!AC||sirenOsc) return;
+  const g=AC.createGain(); g.gain.value=.085; g.connect(sfxBus);
+  sirenOsc=AC.createOscillator(); sirenOsc.type='triangle'; sirenOsc.frequency.value=480;
+  sirenOsc.connect(g); sirenOsc.start();
+  let up=true;
+  sirenOsc._iv=setInterval(()=>{
+    up=!up;
+    sirenOsc.frequency.exponentialRampToValueAtTime(up?760:480, AC.currentTime+.55);
+  },560);
+}
+function sirenStop(){ if(sirenOsc){ clearInterval(sirenOsc._iv); try{sirenOsc.stop();}catch(e){} sirenOsc=null; } }
+
+/* ---------- the soundtrack ---------- */
+const MUS={on:false,mode:'calm',pending:'calm',step:0,next:0,timer:null,bpm:112};
+
+function tone(t,midi,dur,type,vol,cut){
+  const o=AC.createOscillator(), g=AC.createGain(), f=AC.createBiquadFilter();
+  o.type=type; o.frequency.value=NOTE(midi);
+  f.type='lowpass'; f.frequency.value=cut||2800; f.Q.value=.8;
+  g.gain.setValueAtTime(.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+.014);
+  g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(f); f.connect(g); g.connect(musicBus);
+  o.start(t); o.stop(t+dur+.05);
+}
+function hit(t,kind,vol){
+  if(kind==='k'){
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(126,t);
+    o.frequency.exponentialRampToValueAtTime(44,t+.11);
+    g.gain.setValueAtTime(vol||.85,t);
+    g.gain.exponentialRampToValueAtTime(.001,t+.2);
+    o.connect(g); g.connect(musicBus); o.start(t); o.stop(t+.24);
+    return;
+  }
+  const s=AC.createBufferSource(); s.buffer=noiseBuf;
+  const f=AC.createBiquadFilter();
+  const d = kind==='h'? .04 : .16;
+  if(kind==='h'){ f.type='highpass'; f.frequency.value=7200; }
+  else{ f.type='bandpass'; f.frequency.value=1850; f.Q.value=1.3; }
+  const g=AC.createGain();
+  g.gain.setValueAtTime(vol||(kind==='h'?.14:.4),t);
+  g.gain.exponentialRampToValueAtTime(.0001,t+d);
+  s.connect(f); f.connect(g); g.connect(musicBus);
+  s.start(t); s.stop(t+d+.03);
+}
+
+/* Upbeat: F major, four-bar loop, walking bass and a hook on top.
+   Danger: D minor, faster, four-on-the-floor with a two-note warning motif. */
+const CALM_ROOT=[41,38,34,36];                       // F  Dm  Bb  C
+const CALM_CHORD=[[41,45,48],[38,41,45],[34,38,41],[36,40,43]];
+const CALM_HOOK=[
+  [[0,69],[4,72],[7,69],[10,65],[12,67]],
+  [[0,65],[4,69],[7,65],[10,62],[12,64]],
+  [[0,74],[4,72],[7,70],[10,69],[12,65]],
+  [[0,67],[4,64],[6,67],[8,72],[12,70]]
+];
+const DANG_ROOT=[38,38,34,37];                       // Dm  Dm  Bb  C#
+const DANG_HOOK=[
+  [[0,69],[6,68]],
+  [[0,69],[6,68]],
+  [[0,70],[6,69]],
+  [[0,73],[4,72],[8,70],[12,68]]
+];
+
+function scheduleStep(step,t){
+  const bar=Math.floor(step/16), s=step%16;
+  if(MUS.mode==='calm'){
+    if(s===0||s===8||(s===14&&bar%2===1)) hit(t,'k',.8);
+    if(s===4||s===12) hit(t,'s',.34);
+    if(s%2===0) hit(t,'h',s%4===0?.15:.09);
+    const r=CALM_ROOT[bar];
+    if(s===0||s===3||s===6||s===8||s===11||s===14){
+      tone(t,(s===11?r+12:r),.16,'triangle',.30,900);
+    }
+    if(s===0){                                        // pad on the downbeat
+      CALM_CHORD[bar].forEach(n=>tone(t,n+12,1.5,'triangle',.055,1500));
+    }
+    CALM_HOOK[bar].forEach(n=>{ if(n[0]===s) tone(t,n[1],.22,'square',.10,2600); });
+  }else{
+    if(s%4===0) hit(t,'k',.95);
+    if(s===4||s===12||(s===14&&bar%2===1)) hit(t,'s',.4);
+    if(s%2===1) hit(t,'h',.08);
+    const r=DANG_ROOT[bar];
+    if(s%2===0) tone(t,(s===10?r+12:r),.12,'square',.22,720);   // driving eighths
+    if(s===0) tone(t,r-12,1.9,'triangle',.12,300);              // low drone
+    DANG_HOOK[bar].forEach(n=>{ if(n[0]===s) tone(t,n[1],.34,'square',.13,2200); });
+  }
+}
+function musicTick(){
+  if(!AC||!MUS.on) return;
+  while(MUS.next < AC.currentTime+.12){
+    if(MUS.step%16===0 && MUS.pending!==MUS.mode){
+      MUS.mode=MUS.pending;
+      MUS.bpm = MUS.mode==='danger'? 140:112;
+    }
+    scheduleStep(MUS.step,MUS.next);
+    MUS.step=(MUS.step+1)%64;
+    MUS.next += 60/MUS.bpm/4;
+  }
+}
+function musicStart(){
+  if(!AC) return;
+  MUS.on=true; MUS.mode='calm'; MUS.pending='calm'; MUS.bpm=112;
+  MUS.step=0; MUS.next=AC.currentTime+.12;
+  if(!MUS.timer) MUS.timer=setInterval(musicTick,25);
+}
+function musicStop(){
+  MUS.on=false;
+  if(MUS.timer){ clearInterval(MUS.timer); MUS.timer=null; }
+}
+function musicMode(m){
+  if(MUS.pending===m) return;
+  MUS.pending=m;
+  if(!AC) return;
+  const t=AC.currentTime;
+  if(m==='danger'){                                   // downward sweep into the tense track
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type='triangle';
+    o.frequency.setValueAtTime(NOTE(74),t);
+    o.frequency.exponentialRampToValueAtTime(NOTE(50),t+.7);
+    g.gain.setValueAtTime(.16,t); g.gain.exponentialRampToValueAtTime(.0001,t+.75);
+    o.connect(g); g.connect(sfxBus); o.start(t); o.stop(t+.8);
+  }
+}
+function sting(win){
+  if(!AC) return;
+  const seq = win? [65,69,72,77] : [65,62,58,53];
+  seq.forEach((n,i)=>tone(AC.currentTime+i*.16,n,win?.5:.7,'triangle',.16,2200));
+}
+function toggleMute(){
+  if(!AC) return;
+  muted=!muted;
+  master.gain.setTargetAtTime(muted?0:.85, AC.currentTime, .05);
+  toast(muted?'Sound off':'Sound on');
+}
+
+/* ===================== RENDERER ===================== */
+const app=document.getElementById('app');
+const renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFSoftShadowMap;
+renderer.outputEncoding=T.sRGBEncoding;
+renderer.toneMapping=T.ACESFilmicToneMapping; renderer.toneMappingExposure=1.06;
+app.appendChild(renderer.domElement);
+
+const scene=new T.Scene();
+scene.background=new T.Color(0x0b0f14);
+scene.fog=new T.Fog(0x0b0f14,48,108);
+const camera=new T.PerspectiveCamera(46,innerWidth/innerHeight,.5,260);
+const CAM_OFF=new T.Vector3(0,27.5,23.5);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+scene.add(new T.HemisphereLight(0x9fb4c8,0x2a2622,.5));
+const sun=new T.DirectionalLight(0xfff1de,1.1);
+sun.position.set(26,46,18); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+const sc=sun.shadow.camera; sc.left=-48; sc.right=48; sc.top=36; sc.bottom=-36; sc.near=1; sc.far=130;
+sun.shadow.bias=-0.0013; scene.add(sun,sun.target);
+const fillL=new T.DirectionalLight(0x7fa8d8,.3); fillL.position.set(-26,20,-24); scene.add(fillL);
+
+/* ===================== FACTORY GEOMETRY ===================== */
+const OBST=[];
+// h is the top surface — dust settles up there too, and the Pile Diver is what reaches it
+function obst(cx,cz,w,d,h){ OBST.push({x0:cx-w/2,z0:cz-d/2,x1:cx+w/2,z1:cz+d/2,h:h||99}); }
+
+/* Anything standing between the fixed camera and the operator gets faded down,
+   so the near wall and the trusses overhead never hide the floor you're working. */
+const FADERS=[];
+function addFader(z,mats){
+  mats.forEach(m=>{ m.transparent=true; });
+  FADERS.push({z:z, mats:mats, cur:1});
+}
+function updateFaders(dt){
+  for(let i=0;i<FADERS.length;i++){
+    const f=FADERS[i];
+    const target=(f.z > P.z-1.2)? .10 : 1;
+    f.cur += (target-f.cur)*Math.min(1,dt*7);
+    for(let k=0;k<f.mats.length;k++){
+      f.mats[k].opacity=f.cur;
+      f.mats[k].depthWrite=f.cur>.9;
+    }
+  }
+}
+
+function concreteTex(){
+  const c=document.createElement('canvas'); c.width=c.height=1024; const g=c.getContext('2d');
+  g.fillStyle='#6b6a64'; g.fillRect(0,0,1024,1024);
+  for(let i=0;i<24000;i++){ const v=92+Math.random()*68;
+    g.fillStyle='rgba('+v+','+(v-2)+','+(v-9)+','+(Math.random()*.5)+')';
+    g.fillRect(Math.random()*1024,Math.random()*1024,2,2); }
+  g.strokeStyle='rgba(34,34,31,.5)'; g.lineWidth=3;
+  for(let i=1;i<4;i++){ g.beginPath();g.moveTo(i*256,0);g.lineTo(i*256,1024);g.stroke();
+    g.beginPath();g.moveTo(0,i*256);g.lineTo(1024,i*256);g.stroke(); }
+  for(let i=0;i<16;i++){ const x=Math.random()*1024,y=Math.random()*1024,r=30+Math.random()*95;
+    const rg=g.createRadialGradient(x,y,0,x,y,r);
+    rg.addColorStop(0,'rgba(28,26,24,.35)'); rg.addColorStop(1,'rgba(28,26,24,0)');
+    g.fillStyle=rg; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); }
+  const t=new T.CanvasTexture(c); t.wrapS=t.wrapT=T.RepeatWrapping; t.repeat.set(3,2); t.anisotropy=8; return t;
+}
+const floor=new T.Mesh(new T.PlaneGeometry(HX*2,HZ*2),
+  new T.MeshStandardMaterial({map:concreteTex(),roughness:.95,metalness:.03}));
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+
+const stripeMat=new T.MeshStandardMaterial({color:0xf2b01e,roughness:.9});
+function stripe(x,z,w,d){ const m=new T.Mesh(new T.PlaneGeometry(w,d),stripeMat);
+  m.rotation.x=-Math.PI/2; m.position.set(x,.013,z); scene.add(m); }
+stripe(0,-.9,HX*2-6,.3); stripe(0,.9,HX*2-6,.3);
+stripe(-13,0,.3,HZ*2-5); stripe(13,0,.3,HZ*2-5);
+
+const wallMat=new T.MeshStandardMaterial({color:0x474d55,roughness:.8,metalness:.25});
+const trimMat=new T.MeshStandardMaterial({color:0x2b3038,roughness:.68,metalness:.42});
+function wall(cx,cz,w,d,h,fade){
+  const horiz=w>d, span=horiz?w:d;
+  const segs=fade?6:1;
+  for(let s=0;s<segs;s++){
+    const off=(s-(segs-1)/2)*(span/segs);
+    const sw=horiz? span/segs : w, sd=horiz? d : span/segs;
+    const sx=cx+(horiz?off:0), sz=cz+(horiz?0:off);
+    const mw=fade?wallMat.clone():wallMat, mt=fade?trimMat.clone():trimMat;
+    const m=new T.Mesh(new T.BoxGeometry(sw,h,sd),mw);
+    m.position.set(sx,h/2,sz); m.receiveShadow=true; m.castShadow=!fade; scene.add(m);
+    const t=new T.Mesh(new T.BoxGeometry(sw+.06,.5,sd+.06),mt); t.position.set(sx,.25,sz); scene.add(t);
+    const n=Math.floor((horiz?sw:sd)/1.7);
+    for(let i=0;i<n;i++){
+      const r=new T.Mesh(new T.BoxGeometry(horiz?.12:sd+.07,h-.6,horiz?sd+.07:.12),mt);
+      const o=(i-(n-1)/2)*1.7;
+      r.position.set(sx+(horiz?o:0),h/2+.3,sz+(horiz?0:o)); scene.add(r);
+    }
+    if(fade) addFader(sz,[mw,mt]);
+  }
+}
+wall(0,-HZ-.4,HX*2+1.6,.8,WH,false);   // far wall stays solid — it's the backdrop
+wall(0,HZ+.4,HX*2+1.6,.8,WH,true);     // near wall: always cut away
+wall(-HX-.4,0,.8,HZ*2+1.6,WH,true);    // side walls: fade only the half in front of you
+wall(HX+.4,0,.8,HZ*2+1.6,WH,true);
+
+/* trusses + high-bay fixtures */
+const steelMat=new T.MeshStandardMaterial({color:0x596068,roughness:.55,metalness:.65});
+const bayMat=new T.MeshStandardMaterial({color:0xfff4dd,emissive:0xfff0d4,emissiveIntensity:1.5,roughness:.4});
+for(let i=-3;i<=3;i++){
+  const z=i*7;
+  const rowSteel=steelMat.clone(), rowBay=bayMat.clone(), rowShade=trimMat.clone();
+  const b=new T.Mesh(new T.BoxGeometry(HX*2,.5,.55),rowSteel); b.position.set(0,WH-.7,z); scene.add(b);
+  const b2=new T.Mesh(new T.BoxGeometry(HX*2,.2,.2),rowSteel); b2.position.set(0,WH-1.5,z); scene.add(b2);
+  for(let k=-2;k<=2;k++){
+    const w=new T.Mesh(new T.BoxGeometry(.16,1,.16),rowSteel); w.position.set(k*11+(i%2?2:-2),WH-1.15,z); scene.add(w);
+  }
+  for(let k=-2;k<=2;k+=2){
+    const f=new T.Mesh(new T.CylinderGeometry(.62,.82,.34,12),rowBay);
+    f.position.set(k*11,WH-1.9,z); scene.add(f);
+    const shade=new T.Mesh(new T.CylinderGeometry(.9,.62,.4,12),rowShade); shade.position.set(k*11,WH-1.6,z); scene.add(shade);
+    const pl=new T.PointLight(0xffe9c4,.5,26,2); pl.position.set(k*11,WH-2.3,z); scene.add(pl);
+  }
+  addFader(z,[rowSteel,rowBay,rowShade]);
+}
+
+/* equipment */
+const machMat =new T.MeshStandardMaterial({color:0x3f6d8e,roughness:.5,metalness:.55});
+const machMat2=new T.MeshStandardMaterial({color:0x9aa2a8,roughness:.45,metalness:.7});
+const darkMat =new T.MeshStandardMaterial({color:0x2a2f36,roughness:.72,metalness:.4});
+const woodMat =new T.MeshStandardMaterial({color:0x9c7a4c,roughness:.94});
+const crateMat=new T.MeshStandardMaterial({color:0xb08b52,roughness:.9});
+const orangeMat=new T.MeshStandardMaterial({color:0xff6a13,roughness:.55,metalness:.25});
+const glowGreen=new T.MeshStandardMaterial({color:0x2b3a2e,emissive:0x66dd77,emissiveIntensity:1.1,roughness:.4});
+const glowAmber=new T.MeshStandardMaterial({color:0x3a2f1e,emissive:0xffaa22,emissiveIntensity:1.1,roughness:.4});
+
+function box(parent,x,y,z,w,h,d,mat){
+  const m=new T.Mesh(new T.BoxGeometry(w,h,d),mat);
+  m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; parent.add(m); return m;
+}
+function cyl(parent,x,y,z,rt,rb,h,mat,seg){
+  const m=new T.Mesh(new T.CylinderGeometry(rt,rb,h,seg||16),mat);
+  m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; parent.add(m); return m;
+}
+
+function machineCNC(x,z,rot){
+  const g=new T.Group(); g.position.set(x,0,z); g.rotation.y=rot;
+  box(g,0,1.3,0,6,2.6,3.2,machMat);
+  box(g,0,2.85,0,5.2,.5,2.8,machMat2);
+  box(g,-3.3,1.6,.6,.9,1.5,.7,darkMat);
+  box(g,-3.35,2.05,.62,.7,.5,.06,glowGreen);
+  cyl(g,1.6,3.4,0,.35,.35,1.1,machMat2);
+  box(g,0,.18,0,6.4,.36,3.6,darkMat);
+  scene.add(g); obst(x,z, rot? 3.6:6.4, rot? 6.4:3.6, 3.1);
+}
+function conveyor(x,z,len,rot){
+  const g=new T.Group(); g.position.set(x,0,z); g.rotation.y=rot;
+  box(g,0,.95,0,len,.2,1.9,machMat2);
+  box(g,0,1.12,0,len,.12,1.7,darkMat);
+  for(let i=0;i<len/1.2;i++){
+    const r=cyl(g,-len/2+.6+i*1.2,1.22,0,.16,.16,1.7,machMat2,10); r.rotation.x=Math.PI/2;
+  }
+  for(let s=-1;s<=1;s+=2) for(let e=-1;e<=1;e+=2)
+    box(g,e*(len/2-.5),.45,s*.75,.18,.9,.18,darkMat);
+  box(g,len/2+.5,1.4,0,1.2,2.8,2.2,machMat);
+  scene.add(g); obst(x,z, rot?2.2:len+2, rot?len+2:2.2, 1.3);
+}
+function tanks(x,z){
+  const g=new T.Group(); g.position.set(x,0,z);
+  cyl(g,-1.1,2.2,0,1.05,1.05,4.4,machMat2,20);
+  cyl(g,1.1,1.8,0,.9,.9,3.6,machMat2,20);
+  cyl(g,-1.1,4.5,0,1.08,1.05,.25,orangeMat,20);
+  cyl(g,1.1,3.7,0,.93,.9,.25,orangeMat,20);
+  const p=cyl(g,0,3.2,0,.18,.18,2.2,darkMat,10); p.rotation.z=Math.PI/2;
+  box(g,0,.15,0,4.4,.3,2.6,darkMat);
+  scene.add(g); obst(x,z,4.4,2.6);
+}
+function press(x,z,rot){
+  const g=new T.Group(); g.position.set(x,0,z); g.rotation.y=rot;
+  box(g,0,2.4,0,3.4,4.8,2.6,machMat);
+  box(g,0,4.9,0,3.8,.5,3,darkMat);
+  box(g,0,1.1,1.5,2.6,1.6,.5,machMat2);
+  box(g,1.35,3,1.4,.5,.7,.1,glowAmber);
+  cyl(g,0,5.5,0,.28,.28,1.2,machMat2);
+  scene.add(g); obst(x,z,rot?3:3.8,rot?3.8:3);
+}
+function palletStack(x,z,n){
+  const g=new T.Group(); g.position.set(x,0,z);
+  for(let i=0;i<n;i++){
+    box(g,0,.12+i*1.18,0,2.6,.18,2.2,woodMat);
+    box(g,rnd(-.1,.1),.72+i*1.18,rnd(-.1,.1),2.3,1,1.9,crateMat);
+    box(g,0,.72+i*1.18,.97,2.32,.16,.05,darkMat);
+  }
+  scene.add(g); obst(x,z,2.8,2.4, n*1.18+.1);
+}
+function barrels(x,z){
+  const g=new T.Group(); g.position.set(x,0,z);
+  const pos=[[-.8,-.5],[.8,-.4],[0,.8]];
+  pos.forEach(p=>{
+    cyl(g,p[0],.85,p[1],.55,.55,1.7,orangeMat,16);
+    cyl(g,p[0],1.15,p[1],.58,.58,.1,darkMat,16);
+    cyl(g,p[0],.55,p[1],.58,.58,.1,darkMat,16);
+  });
+  scene.add(g); obst(x,z,2.6,2.4,1.8);
+}
+function silo(x,z){
+  const g=new T.Group(); g.position.set(x,0,z);
+  cyl(g,0,3,0,1.7,1.7,6,machMat2,22);
+  cyl(g,0,6.5,0,.4,1.7,1,machMat2,22);
+  cyl(g,0,.35,0,1.9,1.9,.7,darkMat,22);
+  for(let i=0;i<3;i++){ const b=box(g,0,3+i*1.6,0,3.5,.12,.12,orangeMat); }
+  scene.add(g); obst(x,z,3.8,3.8);
+}
+function workbench(x,z,rot){
+  const g=new T.Group(); g.position.set(x,0,z); g.rotation.y=rot;
+  box(g,0,.95,0,4.4,.14,1.5,woodMat);
+  for(let e=-1;e<=1;e+=2) for(let s=-1;s<=1;s+=2) box(g,e*2,.45,s*.6,.14,.9,.14,darkMat);
+  box(g,0,1.6,-.65,4.4,1.2,.1,machMat2);
+  box(g,-1.4,1.15,0,.7,.28,.5,orangeMat);
+  scene.add(g); obst(x,z,rot?1.7:4.6,rot?4.6:1.7, 1.05);
+}
+
+machineCNC(-19,-12,0); machineCNC(-19,9,0); machineCNC(17,-13,0);
+conveyor(-3,-15,14,0); conveyor(4,13,16,0);
+tanks(22,6); tanks(-27,-3);
+press(9,-6,0); press(-8,4,0);
+palletStack(25,-17,2); palletStack(-25,17,2); palletStack(20,17,1); palletStack(-13,-19,2);
+barrels(0,-6); barrels(-2,18); barrels(28,-6);
+silo(26,-11); silo(-24,-18);   // kept clear of the center aisle the lift truck runs
+workbench(6,3,0); workbench(-14,-4,Math.PI/2); workbench(12,10,0);   // clear of the x=17 lane
+
+/* A one-ton bulk bag standing in the center aisle. It stays upright until the
+   eight-minute mark, then goes over. The tilt group's origin sits at the bag's
+   bottom edge so it pivots on that edge the way the real thing does. */
+const BAG={x:0,z:6,piv:1.4,fallX:0,tilt:null,obst:null,home:null};
+BAG.fallX=BAG.x-BAG.piv-1.9;    // where the body center lands once it's over
+(function buildBag(){
+  const t=new T.Group(); t.position.set(BAG.x-BAG.piv,0,BAG.z);
+  const g=new T.Group(); g.position.set(BAG.piv,0,0); t.add(g);
+
+  // woven polypropylene
+  const weave=(function(){
+    const c=document.createElement('canvas'); c.width=c.height=128;
+    const q=c.getContext('2d');
+    q.fillStyle='#eceae6'; q.fillRect(0,0,128,128);
+    q.strokeStyle='rgba(176,173,166,.5)'; q.lineWidth=1;
+    for(let i=0;i<128;i+=4){
+      q.beginPath(); q.moveTo(i+.5,0); q.lineTo(i+.5,128); q.stroke();
+      q.beginPath(); q.moveTo(0,i+.5); q.lineTo(128,i+.5); q.stroke();
+    }
+    for(let i=0;i<2600;i++){
+      const v=206+Math.random()*44;
+      q.fillStyle='rgba('+v+','+v+','+(v-5)+',.45)';
+      q.fillRect(Math.random()*128,Math.random()*128,2,2);
+    }
+    const tx=new T.CanvasTexture(c);
+    tx.wrapS=tx.wrapT=T.RepeatWrapping; tx.repeat.set(3,3); tx.anisotropy=4;
+    return tx;
+  })();
+  const sackMat=new T.MeshStandardMaterial({map:weave,color:0xf4f3ef,roughness:.93});
+  const seamMat=new T.MeshStandardMaterial({color:0xfcfbf8,roughness:.86});
+  const webMat =new T.MeshStandardMaterial({color:0x8d8b85,roughness:.92});
+  const deckMat=new T.MeshStandardMaterial({color:0xc69d61,roughness:.95});
+  const railMat=new T.MeshStandardMaterial({color:0xb08a52,roughness:.95});
+
+  /* pallet: deck boards, blocks, bottom rails */
+  const PW=3.0, PD=2.9;
+  for(let i=-1;i<=1;i++) box(g,0,.05,i*(PD/2-.3),PW,.1,.44,railMat);
+  for(let i=-1;i<=1;i++) for(let j=-1;j<=1;j++)
+    box(g,i*(PW/2-.32),.17,j*(PD/2-.3),.44,.16,.44,railMat);
+  for(let i=0;i<6;i++)
+    box(g,0,.3,-PD/2+.19+i*((PD-.38)/5),PW,.09,.33,deckMat);
+
+  /* the sack: a filled FIBC bulges at the middle and softens at the corners */
+  const BW=2.62, BH=3.05, BD=2.62, BY=1.9;
+  const hx=BW/2, hy=BH/2, hz=BD/2;
+  function bulge(x,y,z){
+    const n=clamp(y/hy,-1,1);
+    const b=1+0.145*(1-n*n)*(1-0.22*n);      // widest a touch below mid height
+    x*=b; z*=b;
+    const corner=Math.min(Math.abs(x)/(hx*b), Math.abs(z)/(hz*b));
+    const k=0.17*corner*corner;               // round the vertical corners off
+    return [x*(1-k), y, z*(1-k), corner];
+  }
+  const geo=new T.BoxGeometry(BW,BH,BD,8,10,8);
+  const pos=geo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const r=bulge(pos.getX(i),pos.getY(i),pos.getZ(i));
+    let y=r[1];
+    if(y>hy*0.88) y+=0.32*r[3];               // corners drawn up by the loops
+    pos.setXYZ(i,r[0],y,r[2]);
+  }
+  geo.computeVertexNormals();
+  const body=new T.Mesh(geo,sackMat);
+  body.position.y=BY; body.castShadow=true; body.receiveShadow=true; g.add(body);
+
+  /* stitched corner seams, following the same bulge */
+  for(let sx=-1;sx<=1;sx+=2) for(let sz=-1;sz<=1;sz+=2){
+    const pts=[];
+    for(let k=0;k<=12;k++){
+      const y=-hy+BH*(k/12);
+      const r=bulge(sx*hx,y,sz*hz);
+      let yy=r[1]; if(yy>hy*0.88) yy+=0.32*r[3];
+      pts.push(new T.Vector3(r[0],BY+yy,r[2]));
+    }
+    const seam=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts),14,.05,6,false),seamMat);
+    seam.castShadow=true; g.add(seam);
+  }
+
+  /* hemmed top edge and four flat webbing lift loops */
+  const hem=new T.Mesh(new T.TorusGeometry(1.3,.08,6,24),seamMat);
+  hem.rotation.x=Math.PI/2; hem.position.y=BY+hy+.1; g.add(hem);
+  for(let sx=-1;sx<=1;sx+=2) for(let sz=-1;sz<=1;sz+=2){
+    const loop=new T.Mesh(new T.TorusGeometry(.62,.08,6,18,Math.PI),webMat);
+    loop.scale.set(.72,1.15,.28);             // flatten the tube into tall webbing
+    loop.position.set(sx*1.02,BY+hy+.26,sz*1.02);
+    loop.rotation.y=Math.atan2(-sz,sx);       // lies along the corner diagonal
+    loop.castShadow=true; g.add(loop);
+  }
+  scene.add(t);
+  BAG.tilt=t;
+  // painted keep-clear box on the slab, so the bag reads as a marked hazard
+  for(let s=0;s<4;s++){
+    const horiz=s<2;
+    const m=new T.Mesh(new T.PlaneGeometry(horiz?5.4:.3, horiz?.3:5.4),stripeMat);
+    m.rotation.x=-Math.PI/2;
+    m.position.set(BAG.x+(horiz?0:(s===2?-2.55:2.55)), .014, BAG.z+(horiz?(s===0?-2.55:2.55):0));
+    scene.add(m);
+  }
+  const spot=new T.PointLight(0xffe6bb,.85,16,2); spot.position.set(BAG.x,5.2,BAG.z); scene.add(spot);
+  obst(BAG.x,BAG.z,3.1,3.1,3.3);
+  BAG.obst=OBST[OBST.length-1];
+  BAG.home={x0:BAG.obst.x0,z0:BAG.obst.z0,x1:BAG.obst.x1,z1:BAG.obst.z1,h:BAG.obst.h};
+})();
+
+/* ===================== LIFT TRUCK ROUTE =====================
+   An overhead door on the east wall, a staged pallet load at the far end of the
+   center aisle, and the truck that runs between them. Everything lives on z=0,
+   which is why that lane is kept clear of equipment. */
+const LANE_Z=0, LIFT_STOP=-1.1;
+
+const DOORS=[];
+const shutterMat=new T.MeshStandardMaterial({color:0x9aa1a8,roughness:.6,metalness:.5});
+function makeDoor(x,z,rot){
+  const g=new T.Group(); g.position.set(x,0,z); g.rotation.y=rot;
+  box(g,0,2.3,-.3,5.4,4.6,.35,darkMat);                   // dark recess behind
+  box(g,0,4.72,0,5.9,.46,.62,trimMat);                    // header + drum housing
+  const drum=cyl(g,0,4.72,0,.3,.3,5.4,machMat2,14); drum.rotation.z=Math.PI/2;
+  for(let e=-1;e<=1;e+=2) box(g,e*2.85,2.3,0,.3,4.6,.5,trimMat);   // jambs
+  const sh=new T.Group(); g.add(sh);
+  box(sh,0,0,0,5.3,4.5,.16,shutterMat);
+  for(let i=0;i<7;i++) box(sh,0,-2.0+i*.64,.09,5.3,.1,.06,trimMat);  // roll-up ribs
+  for(let i=0;i<4;i++) box(sh,-2+i*1.35,1.55,.1,.9,.5,.05,darkMat);  // vision lites
+  scene.add(g);
+  // inward unit vector: the door's local +z after the rotation
+  DOORS.push({x:x,z:z,rot:rot,ix:Math.sin(rot),iz:Math.cos(rot),shutter:sh,open:0});
+  return DOORS.length-1;
+}
+function setDoor(i,open){
+  const d=DOORS[i]; d.open=open;
+  const s=Math.max(.04,1-open);
+  d.shutter.scale.y=s;
+  d.shutter.position.y=4.5-(4.5*s)/2;
+}
+
+/* Four lanes, each kept clear of equipment so a truck can run it end to end. */
+const ROUTES=[
+  {axis:'x', lane:LANE_Z, from:HX+2.5,  stop:LIFT_STOP, rot:-Math.PI/2, stage:true,
+   door:makeDoor(HX-.25,LANE_Z,-Math.PI/2)},
+  {axis:'z', lane:8,      from:-HZ-2.5, stop:-9.5,      rot:0,
+   door:makeDoor(8,-HZ+.25,0)},
+  {axis:'z', lane:-28.5,  from:-HZ-2.5, stop:-5.5,      rot:0,
+   door:makeDoor(-28.5,-HZ+.25,0)},
+  {axis:'z', lane:17,     from:HZ+2.5,  stop:-9.5,      rot:Math.PI,
+   door:makeDoor(17,HZ-.25,Math.PI)}
+];
+for(let i=0;i<DOORS.length;i++) setDoor(i,0);
+
+/* staged pallet load the truck comes in for */
+const STAGE={crate:null};
+(function buildStage(){
+  const g=new T.Group(); g.position.set(-4,0,LANE_Z);
+  box(g,0,.12,0,2.7,.22,2.3,woodMat);
+  box(g,0,.75,0,2.4,1.05,2.0,crateMat);
+  box(g,0,.75,1.02,2.42,.18,.06,darkMat);
+  const top=box(g,0,1.8,0,2.3,1.0,1.9,crateMat);
+  box(g,0,2.0,.97,2.3,.16,.05,darkMat);
+  STAGE.crate=top;
+  scene.add(g);
+  obst(-4,LANE_Z,2.9,2.5,2.4);
+})();
+
+/* the truck */
+const LIFT={g:null,forks:null,crate:null,beaconMat:null,state:'idle',t:0,u:0,route:null,dustT:0};
+(function buildLift(){
+  const g=new T.Group(); g.rotation.y=-Math.PI/2; g.visible=false;
+  const bodyMat=new T.MeshStandardMaterial({color:0xE2A21C,roughness:.5,metalness:.3});
+  const tyreMat=new T.MeshStandardMaterial({color:0x1b1e22,roughness:.95});
+  box(g,0,.72,-.35,1.7,.9,2.0,bodyMat);           // counterweight body
+  box(g,0,1.28,-1.0,1.5,.5,.7,darkMat);           // counterweight
+  box(g,0,1.42,-.1,1.2,.34,.9,darkMat);           // seat pan
+  box(g,0,1.95,-.62,1.15,.75,.28,bodyMat);        // seat back
+  for(let e=-1;e<=1;e+=2) for(let f=0;f<2;f++){
+    const w=cyl(g,e*.82,.42,f? -1.05:.62,.42,.42,.26,tyreMat,14);
+    w.rotation.z=Math.PI/2;
+  }
+  box(g,0,2.6,-.3,1.55,.12,1.9,darkMat);          // overhead guard
+  for(let e=-1;e<=1;e+=2) for(let f=0;f<2;f++)
+    box(g,e*.72,1.95,f? -1.15:.52,.1,1.4,.1,darkMat);
+  // mast + forks
+  for(let e=-1;e<=1;e+=2) box(g,e*.52,1.6,1.0,.16,3.2,.18,machMat2);
+  const forks=new T.Group(); forks.position.set(0,.12,1.0); g.add(forks);
+  box(forks,0,.35,0,1.3,.7,.12,machMat2);
+  for(let e=-1;e<=1;e+=2){
+    box(forks,e*.42,.04,.62,.14,.08,1.3,machMat2);
+    box(forks,e*.42,.3,.04,.14,.6,.12,machMat2);
+  }
+  const crate=box(forks,0,.62,.66,1.5,1.0,1.3,crateMat); crate.visible=false;
+  LIFT.forks=forks; LIFT.crate=crate;
+  // driver (own materials — the player's are declared further down the file)
+  const dVest=new T.MeshStandardMaterial({color:0xc9e265,roughness:.75});
+  const dSkin=new T.MeshStandardMaterial({color:0xc98c63,roughness:.85});
+  const dHat =new T.MeshStandardMaterial({color:0xff6a13,roughness:.45});
+  box(g,0,2.0,-.15,.5,.62,.34,dVest);
+  box(g,0,2.5,-.18,.34,.36,.34,dSkin);
+  cyl(g,0,2.76,-.18,.24,.28,.16,dHat,14);
+  // beacon
+  LIFT.beaconMat=new T.MeshStandardMaterial({color:0x5a3b12,emissive:0xffa524,emissiveIntensity:1.6,roughness:.4});
+  cyl(g,0,2.82,-.3,.13,.15,.22,LIFT.beaconMat,12);
+  g.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
+  LIFT.g=g; scene.add(g);
+})();
+
+/* the plant manager's golf cart */
+const CART={g:null,x:0,z:0,dir:0,state:'idle',t:0,door:0,legs:0,tx:0,tz:0,dustT:0,trashT:0};
+(function buildCart(){
+  const g=new T.Group(); g.visible=false;
+  const shellM=new T.MeshStandardMaterial({color:0xe9e7e0,roughness:.5,metalness:.15});
+  const trimM =new T.MeshStandardMaterial({color:0x2b3038,roughness:.7,metalness:.3});
+  const tyreM =new T.MeshStandardMaterial({color:0x1b1e22,roughness:.95});
+  box(g,0,.58,0,1.5,.52,2.7,shellM);              // chassis
+  box(g,0,.98,-.6,1.4,.36,1.2,shellM);            // seat pan
+  box(g,0,1.38,-1.06,1.4,.82,.22,shellM);         // seat back
+  box(g,0,.94,1.2,1.5,.36,.5,trimM);              // front cowl
+  box(g,0,.66,-1.4,1.3,.4,.3,trimM);              // rear tray
+  for(let ex=-1;ex<=1;ex+=2) for(let ez=-1;ez<=1;ez+=2)
+    box(g,ex*.62,1.72,ez*1.05,.08,1.6,.08,trimM); // canopy posts
+  box(g,0,2.52,-.1,1.72,.1,2.7,shellM);           // canopy
+  for(let ex=-1;ex<=1;ex+=2) for(let ez=-1;ez<=1;ez+=2){
+    const w=cyl(g,ex*.74,.34,ez*.98,.34,.34,.2,tyreM,14); w.rotation.z=Math.PI/2;
+  }
+  // the manager: dress shirt, tie, white hard hat, clipboard
+  box(g,0,1.52,-.56,.52,.66,.34,new T.MeshStandardMaterial({color:0xdfe6ee,roughness:.82}));
+  box(g,0,1.5,-.38,.1,.44,.05,new T.MeshStandardMaterial({color:0x8c2230,roughness:.7}));
+  box(g,0,2.02,-.58,.34,.36,.34,new T.MeshStandardMaterial({color:0xc98c63,roughness:.85}));
+  cyl(g,0,2.28,-.58,.24,.28,.16,new T.MeshStandardMaterial({color:0xf4f4f2,roughness:.5}),14);
+  box(g,.42,1.46,-.14,.32,.04,.42,new T.MeshStandardMaterial({color:0xd9cfa8,roughness:.9}));
+  const sw=new T.Mesh(new T.TorusGeometry(.19,.035,6,14),trimM);
+  sw.position.set(0,1.36,.58); sw.rotation.x=1.15; g.add(sw);
+  g.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
+  CART.g=g; scene.add(g);
+})();
+
+/* ===================== DROPS (wall inlet valves) ===================== */
+/* Ordered so every unlock spreads coverage instead of clustering on one wall.
+   The first three go live at the start: one on the far wall, two on the near
+   wall, so the bottom of the floor is always reachable. */
+const DROP_SLOTS=[
+  {x:-10,z:-HZ+.4,n:[0,1]},   // far wall, left
+  {x:10, z:HZ-.4, n:[0,-1]},  // near wall, right
+  {x:-12,z:HZ-.4, n:[0,-1]},  // near wall, left
+  {x:14, z:-HZ+.4,n:[0,1]},   // far wall, right
+  {x:-HX+.4,z:-4,n:[1,0]},    // west
+  {x:HX-.4, z:4,  n:[-1,0]},  // east
+  {x:26, z:HZ-.4, n:[0,-1]},  // near wall, far right
+  {x:-27,z:-HZ+.4,n:[0,1]},   // far wall, far left
+  {x:0,  z:HZ-.4, n:[0,-1]},  // near wall, center
+  {x:0,  z:-HZ+.4,n:[0,1]},   // far wall, center
+  {x:-HX+.4,z:15,n:[1,0]},    // west, near corner
+  {x:HX-.4,z:-15,n:[-1,0]},   // east, far corner
+  {x:-28,z:HZ-.4,n:[0,-1]},   // near wall, far left
+  {x:27, z:-HZ+.4,n:[0,1]}    // far wall, far right
+];
+const DROPS=[];
+function buildDrop(slot){
+  const g=new T.Group();
+  g.position.set(slot.x,0,slot.z);
+  g.rotation.y=Math.atan2(slot.n[0],slot.n[1]);
+  // backplate + pipe down the wall
+  box(g,0,1.55,-.1,1.5,2.6,.2,trimMat);
+  cyl(g,0,4.6,-.15,.34,.34,5.5,machMat2,14);
+  cyl(g,0,1.9,-.15,.4,.34,.5,orangeMat,14);
+  // inlet valve body
+  const valve=cyl(g,0,1.15,.14,.34,.34,.55,orangeMat,16);
+  valve.rotation.x=Math.PI/2;
+  const lid=cyl(g,0,1.15,.42,.36,.36,.1,machMat2,16); lid.rotation.x=Math.PI/2;
+  // retractable reel housing — only fitted once you own Hose Hounds
+  const reel=new T.Group(); reel.position.set(0,2.75,.06); reel.visible=false;
+  const drum=cyl(reel,0,0,0,.46,.46,.36,darkMat,18); drum.rotation.x=Math.PI/2;
+  const hub=cyl(reel,0,0,.22,.15,.15,.14,orangeMat,12); hub.rotation.x=Math.PI/2;
+  for(let e=-1;e<=1;e+=2){
+    const rim=new T.Mesh(new T.TorusGeometry(.46,.05,6,20),machMat2);
+    rim.position.z=e*.18; rim.castShadow=true; reel.add(rim);
+  }
+  g.add(reel);
+  // status lamp
+  const lampMat=new T.MeshStandardMaterial({color:0x243026,emissive:0x55ee66,emissiveIntensity:1.4,roughness:.35});
+  const lamp=cyl(g,0,2.15,.12,.12,.12,.1,lampMat,10); lamp.rotation.x=Math.PI/2;
+  const halo=new T.PointLight(0x55ee66,.6,5,2); halo.position.set(0,1.6,.5); g.add(halo);
+  // floor decal ring
+  const ring=new T.Mesh(new T.RingGeometry(1.1,1.45,28),
+    new T.MeshBasicMaterial({color:0xf2b01e,transparent:true,opacity:.5,side:T.DoubleSide}));
+  ring.rotation.x=-Math.PI/2; ring.position.set(0,.02,.9); g.add(ring);
+  scene.add(g);
+  const inlet=new T.Vector3(slot.x+slot.n[0]*.45, 1.15, slot.z+slot.n[1]*.45);
+  return {x:slot.x+slot.n[0]*1.0, z:slot.z+slot.n[1]*1.0, inlet, group:g, lamp:lampMat, halo, ring, reel, n:slot.n};
+}
+function refreshDrops(count){
+  while(DROPS.length<count && DROPS.length<DROP_SLOTS.length){
+    const d=buildDrop(DROP_SLOTS[DROPS.length]);
+    if(S.hound) d.reel.visible=true;
+    DROPS.push(d);
+  }
+}
+function showReels(){ for(let i=0;i<DROPS.length;i++) DROPS[i].reel.visible=true; }
+
+/* exit door on the south wall */
+const exitG=new T.Group(); exitG.position.set(30,0,HZ+.1);
+const doorMat=new T.MeshStandardMaterial({color:0x22282f,roughness:.7,metalness:.4});
+addFader(HZ+.1,[doorMat]);   // the lit EXIT sign above it stays solid as a beacon
+box(exitG,0,1.7,0,3.2,3.4,.3,doorMat);
+box(exitG,0,3.7,.1,3.4,.55,.12,new T.MeshStandardMaterial({color:0x1e3d24,emissive:0x3ddd5a,emissiveIntensity:1.2,roughness:.4}));
+const exitLight=new T.PointLight(0x55ff77,.7,10,2); exitLight.position.set(30,3.6,HZ-.7); scene.add(exitLight);
+scene.add(exitG);
+const EXIT={x:30,z:HZ-1.2};
+
+/* ===================== PLAYER ===================== */
+const vestMat=new T.MeshStandardMaterial({color:0xc9e265,roughness:.75});
+const reflMat=new T.MeshStandardMaterial({color:0xdfe8ef,roughness:.3,metalness:.3,emissive:0x333333});
+const pantMat=new T.MeshStandardMaterial({color:0x2c3a4d,roughness:.9});
+const skinMat=new T.MeshStandardMaterial({color:0xc98c63,roughness:.85});
+const hatMat =new T.MeshStandardMaterial({color:0xff6a13,roughness:.45,metalness:.05});
+const bootMat=new T.MeshStandardMaterial({color:0x23262b,roughness:.9});
+
+const player=new T.Group();
+const torso=new T.Group(); torso.position.y=1.0; player.add(torso);
+box(torso,0,.28,0,.78,1.02,.46,vestMat);
+box(torso,0,.42,.235,.72,.1,.03,reflMat);
+box(torso,0,.12,.235,.72,.1,.03,reflMat);
+box(torso,0,.28,-.235,.72,.1,.03,reflMat);
+const head=box(torso,0,1.02,0,.4,.42,.4,skinMat);
+const hat=cyl(torso,0,1.28,0,.29,.33,.2,hatMat,18);
+const brim=cyl(torso,0,1.19,.09,.42,.42,.06,hatMat,18);
+const armL=new T.Group(); armL.position.set(-.5,.72,0); torso.add(armL);
+box(armL,0,-.34,0,.2,.72,.22,vestMat);
+const armR=new T.Group(); armR.position.set(.5,.72,0); torso.add(armR);
+box(armR,0,-.34,0,.2,.72,.22,vestMat);
+const legL=new T.Group(); legL.position.set(-.2,1.0,0); player.add(legL);
+box(legL,0,-.45,0,.24,.9,.26,pantMat); box(legL,0,-.93,.05,.26,.16,.4,bootMat);
+const legR=new T.Group(); legR.position.set(.2,1.0,0); player.add(legR);
+box(legR,0,-.45,0,.24,.9,.26,pantMat); box(legR,0,-.93,.05,.26,.16,.4,bootMat);
+/* coiled hose on the back when stowed */
+const coil=new T.Group(); coil.position.set(0,1.35,-.42);
+for(let i=0;i<3;i++){
+  const tr=new T.Mesh(new T.TorusGeometry(.34-i*0.01,.1,8,20),new T.MeshStandardMaterial({color:0x22262b,roughness:.85}));
+  tr.position.y=i*.1-.1; tr.rotation.x=Math.PI/2+rnd(-.12,.12); tr.castShadow=true; coil.add(tr);
+}
+player.add(coil);
+player.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
+scene.add(player);
+
+/* wand (the tool on the end of the hose) */
+const wand=new T.Group();
+const wandTube=cyl(wand,0,0,0,.075,.075,1,machMat2,12);
+wandTube.rotation.x=Math.PI/2;
+const wandHead=new T.Mesh(new T.BoxGeometry(.62,.1,.3),orangeMat); wand.add(wandHead);
+wand.visible=false; scene.add(wand);
+
+/* FiberLight — 24 ft of carbon fiber with a lit head, for the rafters. Built up
+   +y so it can be stood on end at the operator's hands and leaned forward. */
+const POLE_LEN=7.2;
+const pole=new T.Group(); pole.visible=false; pole.rotation.order='YXZ'; scene.add(pole);
+(function buildPole(){
+  const fibreMat=new T.MeshStandardMaterial({color:0x1d2024,roughness:.38,metalness:.45});
+  const shaft=new T.Mesh(new T.CylinderGeometry(.035,.062,POLE_LEN,10),fibreMat);
+  shaft.position.y=POLE_LEN/2; shaft.castShadow=true; pole.add(shaft);
+  for(let i=1;i<4;i++){                       // section ferrules
+    const f=new T.Mesh(new T.CylinderGeometry(.052,.052,.14,10),machMat2);
+    f.position.y=POLE_LEN*i/4; pole.add(f);
+  }
+  const neck=new T.Mesh(new T.CylinderGeometry(.045,.045,.55,10),fibreMat);
+  neck.position.set(0,POLE_LEN+.16,-.16); neck.rotation.x=.62; pole.add(neck);
+  const head=new T.Mesh(new T.BoxGeometry(.30,.1,.42),fibreMat);
+  head.position.set(0,POLE_LEN+.42,-.4); pole.add(head);
+  const lamp=new T.Mesh(new T.BoxGeometry(.2,.07,.09),
+    new T.MeshStandardMaterial({color:0x223040,emissive:0xcfe9ff,emissiveIntensity:2,roughness:.3}));
+  lamp.position.set(0,POLE_LEN+.4,-.6); pole.add(lamp);
+  const pl=new T.PointLight(0xcfe9ff,1.5,9,2); pl.position.set(0,POLE_LEN+.3,-.5); pole.add(pl);
+})();
+const NOZZLE=new T.Vector3();
+
+/* The Suck Norris — twin-barrel handheld, black shell, green collars, pistol
+   grip, big front coupling. Built down +z so it drops straight into the wand's
+   transform. */
+const norris=new T.Group(); norris.visible=false; scene.add(norris);
+(function buildNorris(){
+  const barrelMat=new T.MeshStandardMaterial({color:0x53585e,roughness:.34,metalness:.88});
+  const shellMat =new T.MeshStandardMaterial({color:0x26292d,roughness:.52,metalness:.38});
+  const greenMat =new T.MeshStandardMaterial({color:0x4f9e66,roughness:.46,metalness:.22});
+  function tube(r,len,z,mat,seg){
+    const m=new T.Mesh(new T.CylinderGeometry(r,r,len,seg||18),mat);
+    m.rotation.x=Math.PI/2; m.position.z=z; norris.add(m); return m;
+  }
+  for(let e=-1;e<=1;e+=2){                     // the two rails
+    const b=new T.Mesh(new T.CylinderGeometry(.085,.085,2.5,14),barrelMat);
+    b.rotation.x=Math.PI/2; b.position.set(e*.155,0,.05); norris.add(b);
+  }
+  tube(.30,.66,-1.02,shellMat);                // rear canister
+  tube(.27,.78,.06,shellMat);                  // mid body
+  tube(.25,.52,.95,shellMat);                  // front housing
+  tube(.235,.2,1.28,barrelMat,20);             // coupling mouth
+  tube(.185,.12,1.34,shellMat,20);             // bore
+  [[-.66,.315],[.48,.295],[.80,.285],[1.16,.275]].forEach(c=>{
+    tube(c[1],.17,c[0],greenMat,22);           // collars
+  });
+  const grip=new T.Mesh(new T.BoxGeometry(.15,.5,.22),shellMat);
+  grip.position.set(0,-.38,-.92); grip.rotation.x=-.26; norris.add(grip);
+  const trig=new T.Mesh(new T.BoxGeometry(.09,.16,.06),greenMat);
+  trig.position.set(0,-.2,-.68); norris.add(trig);
+  for(let i=0;i<5;i++){                        // cooling fins on the mid body
+    const f=new T.Mesh(new T.BoxGeometry(.5,.06,.09),shellMat);
+    f.position.set(0,.19,-.2+i*.13); norris.add(f);
+  }
+  norris.traverse(o=>{ if(o.isMesh) o.castShadow=true; });
+})();
+
+const P={x:0,z:16,dir:0,bob:0};
+
+/* ===================== HOSE (verlet rope) ===================== */
+const hoseMat=new T.MeshStandardMaterial({color:0x23272c,roughness:.72,metalness:.12});
+let hoseMesh=null, NODES=[], TAUT=[], nodeCount=0;
+function buildRope(){
+  nodeCount=Math.max(8,Math.round(S.hoseLen/SEG));
+  NODES=[]; TAUT=[];
+  for(let i=0;i<nodeCount;i++){
+    NODES.push({p:new T.Vector3(P.x,.35,P.z),o:new T.Vector3(P.x,.35,P.z)});
+    TAUT.push(new T.Vector3(P.x,.45,P.z));
+  }
+}
+function resetRopeTo(a,b){
+  for(let i=0;i<nodeCount;i++){
+    const t=i/(nodeCount-1);
+    const v=new T.Vector3().lerpVectors(a,b,t); v.y=Math.max(.3,v.y);
+    NODES[i].p.copy(v); NODES[i].o.copy(v);
+    TAUT[i].set(v.x,.45,v.z);
+  }
+}
+/* The taut path is the hose pulled tight: a shortest route from the inlet to the
+   tool that still has to bend around whatever equipment is in the way. Its length
+   is how much hose the run actually consumes — the visible hose just drapes over it. */
+function solveTaut(a,b){
+  TAUT[0].set(a.x,.45,a.z);
+  TAUT[nodeCount-1].set(b.x,.45,b.z);
+  for(let k=0;k<9;k++){
+    for(let i=1;i<nodeCount-1;i++){
+      const p=TAUT[i], m=TAUT[i-1], n=TAUT[i+1];
+      p.x=p.x*.35+(m.x+n.x)*.325;
+      p.z=p.z*.35+(m.z+n.z)*.325;
+      p.y=.45;
+      collideCircle(p,.3);
+    }
+    TAUT[0].set(a.x,.45,a.z);
+    TAUT[nodeCount-1].set(b.x,.45,b.z);
+  }
+  let L=0;
+  for(let i=0;i<nodeCount-1;i++){
+    const dx=TAUT[i+1].x-TAUT[i].x, dz=TAUT[i+1].z-TAUT[i].z;
+    L+=Math.sqrt(dx*dx+dz*dz);
+  }
+  return L;
+}
+function collideCircle(p,r){
+  for(let i=0;i<OBST.length;i++){
+    const o=OBST[i];
+    const cx=clamp(p.x,o.x0,o.x1), cz=clamp(p.z,o.z0,o.z1);
+    let dx=p.x-cx, dz=p.z-cz, d2=dx*dx+dz*dz;
+    if(d2<r*r){
+      if(d2>1e-6){ const d=Math.sqrt(d2); p.x=cx+dx/d*r; p.z=cz+dz/d*r; }
+      else{
+        const toL=p.x-o.x0, toR=o.x1-p.x, toB=p.z-o.z0, toT=o.z1-p.z;
+        const m=Math.min(toL,toR,toB,toT);
+        if(m===toL)p.x=o.x0-r; else if(m===toR)p.x=o.x1+r; else if(m===toB)p.z=o.z0-r; else p.z=o.z1+r;
+      }
+    }
+  }
+  p.x=clamp(p.x,-HX+r,HX-r); p.z=clamp(p.z,-HZ+r,HZ-r);
+}
+function solveRope(dt,a,b,rest){
+  const g=9.4*dt*dt;
+  for(let i=1;i<nodeCount-1;i++){
+    const n=NODES[i], px=n.p.x,py=n.p.y,pz=n.p.z;
+    n.p.x+=(n.p.x-n.o.x)*.86; n.p.y+=(n.p.y-n.o.y)*.86-g; n.p.z+=(n.p.z-n.o.z)*.86;
+    n.o.set(px,py,pz);
+  }
+  NODES[0].p.copy(a); NODES[nodeCount-1].p.copy(b);
+  for(let k=0;k<9;k++){
+    for(let i=0;i<nodeCount-1;i++){
+      const A=NODES[i].p,B=NODES[i+1].p;
+      const dx=B.x-A.x,dy=B.y-A.y,dz=B.z-A.z;
+      let d=Math.sqrt(dx*dx+dy*dy+dz*dz); if(d<1e-5) d=1e-5;
+      const diff=(d-rest)/d*.5;
+      const ox=dx*diff, oy=dy*diff, oz=dz*diff;
+      if(i!==0){ A.x+=ox;A.y+=oy;A.z+=oz; }
+      if(i+1!==nodeCount-1){ B.x-=ox;B.y-=oy;B.z-=oz; }
+    }
+    for(let i=1;i<nodeCount-1;i++){
+      const p=NODES[i].p;
+      if(p.y<.16) p.y=.16;
+      collideCircle(p,.2);
+    }
+    NODES[0].p.copy(a); NODES[nodeCount-1].p.copy(b);
+  }
+  let len=0;
+  for(let i=0;i<nodeCount-1;i++) len+=NODES[i].p.distanceTo(NODES[i+1].p);
+  return len;
+}
+function clearHose(){
+  if(hoseMesh){ scene.remove(hoseMesh); hoseMesh.geometry.dispose(); hoseMesh=null; }
+}
+function tubeThrough(pts){
+  clearHose();
+  if(pts.length<2) return;
+  const geo=new T.TubeGeometry(new T.CatmullRomCurve3(pts),Math.min(72,pts.length),.115+S.bore*.03,8,false);
+  hoseMesh=new T.Mesh(geo,hoseMat); hoseMesh.castShadow=true; scene.add(hoseMesh);
+}
+function drawHose(){
+  if(S.connected<0){ clearHose(); return; }
+  tubeThrough(NODES.map(n=>n.p.clone()));
+}
+
+/* Hose Hounds: the reel takes the hose back. The path the hose was lying along
+   is frozen, then the free end runs down it into the wall, tool and all. */
+let RET=null, CUT=null;
+function startRetract(){
+  RET={pts:NODES.map(n=>n.p.clone()), t:0, dur:.95};
+  noiseBurst(.55,.22,1600);
+  blip(300,.6,'sawtooth',.09);
+}
+function updateRetract(dt){
+  if(CUT){ CUT.t+=dt; if(CUT.t>2.2){ clearHose(); CUT=null; } }
+  if(!RET) return;
+  RET.t+=dt;
+  const prog=Math.min(1,RET.t/RET.dur);
+  const k=Math.max(1,Math.round((RET.pts.length-1)*(1-prog*prog)));
+  const pts=RET.pts.slice(0,k+1);
+  tubeThrough(pts);
+  const end=pts[pts.length-1], prev=pts[Math.max(0,pts.length-2)];
+  wand.visible=true;
+  wand.position.copy(end);
+  wand.lookAt(prev.x,prev.y,prev.z);
+  if(prog>=1){
+    clearHose();
+    wand.visible=false; coil.visible=true;
+    RET=null;
+    blip(200,.16,'square',.2); noiseBurst(.12,.28,520);
+  }
+}
+
+/* ===================== DUST ===================== */
+const dustMatFloor=new T.MeshStandardMaterial({color:0x3b342b,roughness:1});
+const dustMatBig  =new T.MeshStandardMaterial({color:0x2b251e,roughness:1});
+const dustMatHigh =new T.MeshStandardMaterial({color:0x453d32,roughness:1});
+const PILES=[];
+let spillId=0;
+
+/* Dust only ever lands somewhere a live drop can actually reach with the hose
+   on the reel — otherwise it just sits there driving the meter up with no way
+   to get at it. The 0.78 factor leaves margin for routing around equipment. */
+function reachable(x,z,factor){
+  if(!DROPS.length) return true;
+  const R=S.hoseLen*(factor||0.78);
+  for(let i=0;i<DROPS.length;i++){
+    if(Math.hypot(DROPS[i].x-x,DROPS[i].z-z)<R) return true;
+  }
+  return false;
+}
+function freeSpot(pad,factor){
+  for(let k=0;k<90;k++){
+    const x=rnd(-HX+3,HX-3), z=rnd(-HZ+3,HZ-3);
+    if(!reachable(x,z,factor)) continue;
+    let ok=true;
+    for(let i=0;i<OBST.length;i++){
+      const o=OBST[i];
+      if(x>o.x0-pad&&x<o.x1+pad&&z>o.z0-pad&&z<o.z1+pad){ok=false;break;}
+    }
+    if(ok) return {x,z};
+  }
+  // fall back to open floor beside a live drop rather than somewhere unreachable
+  const d=DROPS.length? DROPS[Math.floor(Math.random()*DROPS.length)] : {x:0,z:0};
+  return {x:clamp(d.x+rnd(-7,7),-HX+3,HX-3), z:clamp(d.z-d.z*0.28+rnd(-7,7),-HZ+3,HZ-3)};
+}
+/* A spot on top of a machine, conveyor deck or crate stack — reachable only
+   with the Pile Diver's extension head. */
+function surfaceSpot(){
+  const tops=[];
+  for(let i=0;i<OBST.length;i++){ const o=OBST[i]; if(o.h>=0.9&&o.h<=3.2) tops.push(o); }
+  if(!tops.length) return null;
+  for(let k=0;k<40;k++){
+    const o=tops[Math.floor(Math.random()*tops.length)];
+    const x=rnd(o.x0+.6,o.x1-.6), z=rnd(o.z0+.5,o.z1-.5);
+    if(reachable(x,z,0.7)) return {x:x,z:z,y:o.h};
+  }
+  return null;
+}
+function makePile(x,z,amount,kind,spill,atY){
+  const g=new T.Group(); g.position.set(x,0,z);
+  const mat = kind==='high'?dustMatHigh : (kind==='big'?dustMatBig:dustMatFloor);
+  const blobs=[];
+  const n = kind==='big'?7:(kind==='trash'?2:4);
+  for(let i=0;i<n;i++){
+    const geo=new T.IcosahedronGeometry(rnd(.3,.62),0);
+    const pos=geo.attributes.position;
+    for(let v=0;v<pos.count;v++){
+      pos.setXYZ(v,pos.getX(v)*rnd(.8,1.25),pos.getY(v)*rnd(.35,.6),pos.getZ(v)*rnd(.8,1.25));
+    }
+    geo.computeVertexNormals();
+    const m=new T.Mesh(geo,mat);
+    m.position.set(rnd(-.55,.55),rnd(.04,.2),rnd(-.55,.55));
+    m.castShadow=true; m.receiveShadow=true; g.add(m); blobs.push(m);
+  }
+  if(kind==='rafter'){         // settled along the truss chord, years of it
+    g.position.y=6.62;
+    g.scale.set(1.1,.55,1.1);
+  }
+  if(kind==='trash'){          // what the manager leaves behind him
+    const cup=new T.Mesh(new T.CylinderGeometry(.13,.1,.34,10),
+      new T.MeshStandardMaterial({color:0xe6e0d2,roughness:.86}));
+    cup.position.set(rnd(-.35,.35),.17,rnd(-.35,.35)); cup.rotation.z=rnd(.8,1.4);
+    g.add(cup); blobs.push(cup);
+    const paper=new T.Mesh(new T.IcosahedronGeometry(.19,0),
+      new T.MeshStandardMaterial({color:0xeeeade,roughness:.95}));
+    paper.position.set(rnd(-.55,.55),.18,rnd(-.55,.55));
+    g.add(paper); blobs.push(paper);
+    const can=new T.Mesh(new T.CylinderGeometry(.09,.09,.26,10),
+      new T.MeshStandardMaterial({color:0x9fb4c8,roughness:.45,metalness:.7}));
+    can.position.set(rnd(-.5,.5),.13,rnd(-.5,.5)); can.rotation.x=1.45;
+    g.add(can); blobs.push(can);
+    g.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
+  }
+  let y=0;
+  if(kind==='raised'){ y=atY||1.3; g.position.y=y; g.scale.setScalar(.8); }
+  if(kind==='high'){
+    y=rnd(2.0,2.8); g.position.y=y;
+    // a ledge to sit on, so overhead debris reads as accumulation on structure
+    const shelf=new T.Mesh(new T.BoxGeometry(2.6,.16,1.5),steelMat);
+    shelf.position.y=-.12; shelf.castShadow=true; shelf.receiveShadow=true; g.add(shelf);
+    for(let e=-1;e<=1;e+=2){
+      const br=new T.Mesh(new T.BoxGeometry(.12,.9,.12),steelMat);
+      br.position.set(e*1.1,-.6,0); g.add(br);
+    }
+  }
+  scene.add(g);
+  const pile={x,z,y,amount,max:amount,kind,spill:spill||0,g,blobs,base:g.scale.x};
+  if(kind==='big') g.scale.setScalar(1.35);
+  if(spill){
+    const ring=new T.Mesh(new T.RingGeometry(1.0,1.25,24),
+      new T.MeshBasicMaterial({color:0xff6a13,transparent:true,opacity:.55,side:T.DoubleSide}));
+    ring.rotation.x=-Math.PI/2; ring.position.y=.03-y; g.add(ring); pile.ring=ring;
+  }
+  PILES.push(pile);
+  return pile;
+}
+const BEAM_Z=[-21,-14,-7,0,7,14,21];
+function rafterSpot(){
+  for(let k=0;k<30;k++){
+    const z=BEAM_Z[Math.floor(Math.random()*BEAM_Z.length)];
+    const x=rnd(-HX+5,HX-5);
+    if(reachable(x,z,0.7)) return {x:x,z:z};
+  }
+  return null;
+}
+function spawnPile(){
+  // elevated dust shows up occasionally even before you own the tool for it,
+  // so the card has something visible to solve
+  if(Math.random() < (S.fiber>0? .22 : .09)){
+    const s=rafterSpot();
+    if(s){ makePile(s.x,s.z,rnd(1.0,1.8),'rafter',0); return; }
+  }
+  if(Math.random() < (S.diver>0? .26 : .10)){
+    const s=surfaceSpot();
+    if(s){ makePile(s.x,s.z,rnd(.8,1.3),'raised',0,s.y); return; }
+  }
+  const s=freeSpot(2.2);
+  const kind = Math.random()<.22 ? 'big' : 'floor';
+  makePile(s.x,s.z, kind==='big'?rnd(2.2,3.2):rnd(.9,1.5), kind, 0);
+}
+function spawnSpill(){
+  spillId++;
+  const c=freeSpot(4.5,0.58);   // tighter: the cluster spreads out from here
+  const n=3+Math.floor(Math.random()*3);
+  for(let i=0;i<n;i++){
+    const a=Math.random()*6.28, r=rnd(.8,3.4);
+    let x=clamp(c.x+Math.cos(a)*r,-HX+2,HX-2), z=clamp(c.z+Math.sin(a)*r,-HZ+2,HZ-2);
+    makePile(x,z,rnd(1.2,2.0),'floor',spillId);
+  }
+  if(S.fiber>0 || Math.random()<.28){
+    // debris up on the structure — needs FiberLight tools
+    const a=Math.random()*6.28;
+    makePile(clamp(c.x+Math.cos(a)*3,-HX+2,HX-2), clamp(c.z+Math.sin(a)*3,-HZ+2,HZ-2), rnd(1,1.6),'high',spillId);
+  }
+  toast('Spill reported &mdash; clear it all for an upgrade');
+  blip(300,.16,'square',.16); setTimeout(()=>blip(240,.22,'square',.16),140);
+}
+/* The eight-minute event: a ton of product across the center aisle at once. */
+function bulkBagSpill(){
+  spillId++;
+  const cx=BAG.fallX, cz=BAG.z;
+  for(let i=0;i<11;i++){
+    const a=(i/11)*6.283+rnd(-.25,.25), r=rnd(1.7,5.2);
+    const x=clamp(cx+Math.cos(a)*r,-HX+2.5,HX-2.5);
+    const z=clamp(cz+Math.sin(a)*r,-HZ+2.5,HZ-2.5);
+    makePile(x,z, i<3? rnd(2.4,3.4):rnd(1.3,2.1), i<3?'big':'floor', spillId);
+  }
+  // collision follows the bag to where it actually landed
+  BAG.obst.x0=cx-1.6; BAG.obst.x1=cx+1.6;
+  BAG.obst.z0=cz-1.4; BAG.obst.z1=cz+1.4; BAG.obst.h=1.4;
+  noiseBurst(1.3,.7,240); blip(62,.7,'sawtooth',.36);
+  S.shake=.8;
+  toast('BULK BAG DOWN &mdash; center aisle');
+  showEvent('Bulk bag down &mdash; clear the aisle');
+  setTimeout(hideEvent,7000);
+}
+/* ---------- lift truck run ---------- */
+function liftPlace(){
+  const r=LIFT.route;
+  if(r.axis==='x') LIFT.g.position.set(LIFT.u,0,r.lane);
+  else LIFT.g.position.set(r.lane,0,LIFT.u);
+}
+function liftStart(){
+  const r=ROUTES[Math.floor(Math.random()*ROUTES.length)];
+  LIFT.route=r; LIFT.u=r.from; LIFT.state='open'; LIFT.t=0;
+  LIFT.g.rotation.y=r.rot;
+  LIFT.crate.visible=!r.stage;      // delivery runs arrive loaded, pickups leave loaded
+  LIFT.forks.position.y=.12;
+  LIFT.g.visible=true; liftPlace();
+  showEvent('Lift truck on the floor');
+  blip(330,.16,'triangle',.16); setTimeout(()=>blip(330,.16,'triangle',.16),260);
+}
+function liftEnd(){
+  LIFT.state='idle'; LIFT.g.visible=false;
+  STAGE.crate.visible=true;
+  if(!(S.bagWarned && !S.bagSpilled) && CART.state==='idle') hideEvent();
+  // traffic picks up as the shift wears on
+  S.forkTimer=rnd(120,165)*(1-0.62*clamp(S.t/SHIFT,0,1));
+}
+function cutHose(){
+  if(S.connected<0) return;
+  tubeThrough(NODES.map(n=>n.p.clone()));   // the dead hose stays on the floor a moment
+  CUT={t:0};
+  S.connected=-1; S.taut=0; S.needLen=0;
+  if(S.norrisT>0){ S.norrisT=0; S.norrisCd=NORRIS_CD; }
+  norris.visible=false; wand.visible=false; coil.visible=false;
+  humSet(0);
+  toast('Hose crushed &mdash; get a new one from a drop');
+  noiseBurst(.4,.55,1100); blip(95,.4,'triangle',.3);
+}
+/* shared: anything driving across the floor sheds dust, crushes hose, flattens people */
+function vehicleWake(dt,vx,vz,o,dustEvery,amtLo,amtHi,crushR,hitR,label){
+  o.dustT-=dt;
+  if(o.dustT<=0 && vx>-HX+2.5 && vx<HX-2.5 && vz>-HZ+2.5 && vz<HZ-2.5){
+    o.dustT=dustEvery;
+    makePile(vx+rnd(-1.1,1.1), vz+rnd(-1.1,1.1), rnd(amtLo,amtHi),'floor',0);
+  }
+  if(crushR>0 && S.connected>=0 && !S.series){
+    for(let i=1;i<nodeCount;i++){
+      const p=NODES[i].p;
+      if(Math.hypot(p.x-vx,p.z-vz)<crushR){ cutHose(); break; }
+    }
+  }
+  if(hitR>0 && S.stun<=0 && Math.hypot(P.x-vx,P.z-vz)<hitR){
+    S.stun=10; S.shake=.6;
+    noiseBurst(.5,.6,500); blip(110,.5,'triangle',.3);
+    toast(label);
+  }
+}
+function updateLift(dt){
+  if(LIFT.state==='idle'){
+    S.forkTimer-=dt;
+    if(S.forkTimer<=0 && S.t<SHIFT-12){ S.forkRuns++; liftStart(); }
+    return;
+  }
+  const r=LIFT.route, dir=Math.sign(r.stop-r.from);
+  LIFT.t+=dt;
+
+  if(LIFT.state==='open'){
+    setDoor(r.door,Math.min(1,LIFT.t/1.1));
+    if(LIFT.t>=1.1){ LIFT.state='in'; LIFT.t=0; }
+  }else if(LIFT.state==='in'){
+    LIFT.u+=dir*7.4*dt;
+    if((dir<0&&LIFT.u<=r.stop)||(dir>0&&LIFT.u>=r.stop)){ LIFT.u=r.stop; LIFT.state='load'; LIFT.t=0; }
+  }else if(LIFT.state==='load'){
+    LIFT.forks.position.y=.12+Math.min(.9,LIFT.t*.6);
+    if(LIFT.t>1.0){
+      if(r.stage){ LIFT.crate.visible=true; STAGE.crate.visible=false; }
+      else LIFT.crate.visible=false;          // set the delivery down
+    }
+    if(LIFT.t>2.4){ LIFT.state='out'; LIFT.t=0; }
+  }else if(LIFT.state==='out'){
+    LIFT.u-=dir*6.6*dt;
+    if(Math.floor(LIFT.t*1.6)!==Math.floor((LIFT.t-dt)*1.6)) blip(760,.1,'triangle',.07); // backup alarm
+    if((dir<0&&LIFT.u>=r.from)||(dir>0&&LIFT.u<=r.from)){ LIFT.state='close'; LIFT.t=0; LIFT.forks.position.y=.12; }
+  }else if(LIFT.state==='close'){
+    setDoor(r.door,Math.max(0,1-LIFT.t/1.1));
+    if(LIFT.t>=1.1) liftEnd();
+  }
+
+  liftPlace();
+  LIFT.beaconMat.emissiveIntensity=1.0+Math.sin(S.t*11)*1.1;
+
+  if(LIFT.state==='in'||LIFT.state==='out'){
+    vehicleWake(dt,LIFT.g.position.x,LIFT.g.position.z,LIFT,.55,.45,.85,1.55,1.8,'Hit by the lift truck');
+  }
+}
+
+/* ---------- the plant manager ---------- */
+function cartPickTarget(){
+  const s=freeSpot(3.4);
+  CART.tx=s.x; CART.tz=s.z;
+}
+function cartStart(){
+  CART.door=Math.floor(Math.random()*DOORS.length);
+  const d=DOORS[CART.door];
+  CART.x=d.x-d.ix*2.5; CART.z=d.z-d.iz*2.5;   // just outside
+  CART.dir=Math.atan2(d.ix,d.iz);
+  CART.state='open'; CART.t=0; CART.legs=0;
+  CART.tx=d.x+d.ix*5; CART.tz=d.z+d.iz*5;
+  CART.g.visible=true; CART.g.position.set(CART.x,0,CART.z); CART.g.rotation.y=CART.dir;
+  toast('Plant manager is walking the floor');
+  blip(520,.12,'triangle',.14); setTimeout(()=>blip(660,.14,'triangle',.14),150);
+}
+function cartEnd(){
+  CART.state='idle'; CART.g.visible=false;
+  S.cartTimer=rnd(80,140);
+}
+function updateCart(dt){
+  if(CART.state==='idle'){
+    S.cartTimer-=dt;
+    if(S.cartTimer<=0 && S.t<SHIFT-20 && LIFT.state==='idle') cartStart();
+    return;
+  }
+  const d=DOORS[CART.door];
+  CART.t+=dt;
+
+  if(CART.state==='open'){
+    setDoor(CART.door, Math.min(1,CART.t/.9));
+    if(CART.t>=.9){ CART.state='tour'; CART.t=0; }
+    CART.g.position.set(CART.x,0,CART.z);
+    return;
+  }
+  if(CART.state==='close'){
+    setDoor(CART.door,Math.max(0,1-CART.t/.9));
+    if(CART.t>=.9) cartEnd();
+    return;
+  }
+
+  // drive toward the current target
+  let dx=CART.tx-CART.x, dz=CART.tz-CART.z;
+  const dist=Math.hypot(dx,dz)||1;
+  const want=Math.atan2(dx,dz);
+  let diff=((want-CART.dir+Math.PI*3)%(Math.PI*2))-Math.PI;
+  CART.dir+=diff*Math.min(1,dt*2.6);
+  const sp=6.2*dt;
+  CART.x+=Math.sin(CART.dir)*sp; CART.z+=Math.cos(CART.dir)*sp;
+
+  if(CART.state==='tour'){
+    tmpC.set(CART.x,0,CART.z); collideCircle(tmpC,1.5); CART.x=tmpC.x; CART.z=tmpC.z;
+    if(dist<2.4 || CART.t>9){
+      CART.t=0; CART.legs++;
+      if(CART.legs>=4){ CART.state='leave'; CART.tx=d.x+d.ix*3.5; CART.tz=d.z+d.iz*3.5; }
+      else cartPickTarget();
+    }
+  }else if(CART.state==='leave'){
+    if(dist<2.0){
+      CART.tx=d.x-d.ix*2.5; CART.tz=d.z-d.iz*2.5;
+      CART.state='exit'; CART.t=0;
+    }
+  }else if(CART.state==='exit'){
+    if(dist<1.0 || CART.t>3){ CART.state='close'; CART.t=0; }
+  }
+
+  CART.g.position.set(CART.x,0,CART.z);
+  CART.g.rotation.y=CART.dir;
+
+  // he inspects, he litters, and he does not watch where he is going
+  vehicleWake(dt,CART.x,CART.z,CART,1.1,.3,.55,1.35,1.55,'Run down by the plant manager');
+  CART.trashT-=dt;
+  if(CART.trashT<=0 && CART.state==='tour'){
+    CART.trashT=3.2;
+    makePile(CART.x+rnd(-1.2,1.2), CART.z+rnd(-1.2,1.2), rnd(.6,1.0),'trash',0);
+  }
+}
+function removePile(p){
+  scene.remove(p.g);
+  p.g.traverse(o=>{ if(o.isMesh){ o.geometry.dispose(); } });
+  const i=PILES.indexOf(p); if(i>=0) PILES.splice(i,1);
+}
+
+/* suction particles */
+const PMAX=420;
+const pPos=new Float32Array(PMAX*3), pVel=new Float32Array(PMAX*3), pLife=new Float32Array(PMAX);
+let pHead=0;
+const pGeo=new T.BufferGeometry();
+pGeo.setAttribute('position',new T.BufferAttribute(pPos,3));
+function dotTexture(){
+  const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d');
+  const rg=g.createRadialGradient(32,32,0,32,32,32);
+  rg.addColorStop(0,'rgba(58,51,42,1)'); rg.addColorStop(.45,'rgba(74,66,55,.6)'); rg.addColorStop(1,'rgba(90,82,68,0)');
+  g.fillStyle=rg; g.fillRect(0,0,64,64);
+  return new T.CanvasTexture(c);
+}
+const pts=new T.Points(pGeo,new T.PointsMaterial({size:.28,map:dotTexture(),transparent:true,depthWrite:false,opacity:.95}));
+for(let i=0;i<PMAX;i++){ pPos[i*3+1]=-200; }
+scene.add(pts);
+function emitParticle(x,y,z){
+  const i=pHead; pHead=(pHead+1)%PMAX;
+  pPos[i*3]=x+rnd(-.3,.3); pPos[i*3+1]=y+rnd(0,.35); pPos[i*3+2]=z+rnd(-.3,.3);
+  pVel[i*3]=rnd(-1,1); pVel[i*3+1]=rnd(.5,2); pVel[i*3+2]=rnd(-1,1);
+  pLife[i]=.55;
+}
+function updateParticles(dt){
+  for(let i=0;i<PMAX;i++){
+    if(pLife[i]<=0) continue;
+    pLife[i]-=dt;
+    if(pLife[i]<=0){ pPos[i*3+1]=-200; continue; }
+    const dx=NOZZLE.x-pPos[i*3], dy=NOZZLE.y-pPos[i*3+1], dz=NOZZLE.z-pPos[i*3+2];
+    const d=Math.max(.4,Math.hypot(dx,dy,dz));
+    const pull=34/d;
+    pVel[i*3]+=dx/d*pull*dt; pVel[i*3+1]+=dy/d*pull*dt; pVel[i*3+2]+=dz/d*pull*dt;
+    pPos[i*3]+=pVel[i*3]*dt; pPos[i*3+1]+=pVel[i*3+1]*dt; pPos[i*3+2]+=pVel[i*3+2]*dt;
+  }
+  pGeo.attributes.position.needsUpdate=true;
+}
+
+/* ===================== REWARDS ===================== */
+const svgIcon = (inner) =>
+  '<svg viewBox="0 0 40 34" width="42" height="34" aria-hidden="true" fill="none" stroke="#FF6A13" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>';
+
+const REWARDS=[
+  { id:'hose', name:'Hose Extension', icon:svgIcon('<path d="M3 27c6 0 6-9 12-9s6 9 12 9 6-9 10-9"/><circle cx="37" cy="18" r="2.5" fill="#FF6A13"/>'),
+    lvl:s=>s.perks.hose||0, max:6,
+    desc:'Another 25 ft section on the reel. Cover more floor from every drop before you have to walk back and swap.',
+    spec:s=>'HOSE  '+FT(s.hoseLen)+' ft  →  '+FT(s.hoseLen+12)+' ft',
+    apply:s=>{ s.hoseLen+=12; } },
+
+  { id:'bore', name:'Larger Hose', icon:svgIcon('<circle cx="20" cy="17" r="13"/><circle cx="20" cy="17" r="7"/><path d="M13 17h14" stroke-dasharray="2 3"/><path d="M13 13.5v7M27 13.5v7"/>'),
+    lvl:s=>s.perks.bore||0, max:4,
+    desc:'Step the hose up a size. A bigger bore moves more air at the tool, so the same pile comes off the slab in less time — provided you have the horsepower behind it.',
+    spec:s=>'HOSE ID  '+(1.5+(s.bore)*0.25).toFixed(2)+' in.  →  '+(1.5+(s.bore+1)*0.25).toFixed(2)+' in.',
+    apply:s=>{ s.bore++; s.suction*=1.25; } },
+
+  { id:'series', name:'Series 2000 Hose', icon:svgIcon('<path d="M4 22c5 0 5-8 10-8s5 8 10 8 5-8 10-8"/><path d="M8 14.5l2 3M14 13l2 3M20 20.5l2 3M26 13.5l2 3"/><path d="M4 28h32"/>'),
+    lvl:s=>s.perks.series||0, max:1,
+    desc:'Crush-resistant hose with a steel-reinforced helix. A loaded lift truck can roll straight over it and you keep vacuuming — which is the whole reason we stock it.',
+    spec:s=>'SURVIVES ANY TRAFFIC ON THE FLOOR',
+    apply:s=>{ s.series=1; hoseMat.color.setHex(0x39424c); } },
+
+  { id:'norris', name:'Suck Norris', icon:svgIcon('<path d="M6 12h22v10H6z"/><path d="M28 14h5l4 3-4 3h-5"/><circle cx="34" cy="17" r="2.4" fill="#FF6A13" stroke="none"/><path d="M12 22v6M10 28h5"/><path d="M9 9v3M15 9v3"/>'),
+    lvl:s=>s.perks.norris||0, max:1,
+    gate:s=>(s.perks.bore||0)>0 && (s.perks.hp||0)>0,
+    desc:'Twin-barrel handheld that only works on a system with the bore and the horsepower to feed it. Squeeze it and nothing on that floor stays where it is. Five seconds is all it gives you.',
+    spec:s=>'PRESS Q · 10× RECOVERY FOR 5 SEC · 30 SEC RECHARGE',
+    apply:s=>{ s.norris=1; } },
+
+  { id:'hound', name:'Hose Hounds', icon:svgIcon('<circle cx="20" cy="17" r="10"/><circle cx="20" cy="17" r="3.4" fill="#FF6A13" stroke="none"/><path d="M20 7v3M20 24v3M10 17h3M27 17h3"/><path d="M30 10l4-4M10 10L6 6"/>'),
+    lvl:s=>s.perks.hound||0, max:1,
+    desc:'A retractable reel on every drop. Hit the release anywhere on the floor and the hose runs itself back to the wall — no more walking the line back to where you plugged in.',
+    spec:s=>'RELEASE ANYWHERE · HOSE AUTO-RETRACTS',
+    apply:s=>{ s.hound=1; showReels(); } },
+
+  { id:'drop', name:'Additional Drop', icon:svgIcon('<path d="M6 4v26M20 4v26M34 4v26"/><circle cx="6" cy="20" r="3" fill="#FF6A13"/><circle cx="20" cy="20" r="3" fill="#FF6A13"/><circle cx="34" cy="20" r="3" fill="#FF6A13"/>'),
+    lvl:s=>s.perks.drop||0, max:10,
+    desc:'Two more inlet valves tapped into the main. Shorter walks, less dragging, more time on the floor actually cleaning.',
+    spec:s=>'DROPS  '+s.dropCount+'  →  '+Math.min(DROP_SLOTS.length,s.dropCount+2),
+    apply:s=>{ s.dropCount=Math.min(DROP_SLOTS.length,s.dropCount+2); refreshDrops(s.dropCount); } },
+
+  { id:'hp', name:'Horsepower', icon:svgIcon('<circle cx="20" cy="17" r="10"/><path d="M20 7v10l7 4"/><path d="M4 17h4M32 17h4"/>'),
+    lvl:s=>s.perks.hp||0, max:8,
+    desc:'Step the turbine package up. More CFM at the tool and more water lift, so piles come off the slab faster.',
+    spec:s=>'AIRFLOW  '+Math.round(320+ (s.perks.hp||0)*90)+' → '+Math.round(320+((s.perks.hp||0)+1)*90)+' CFM',
+    apply:s=>{ s.suction*=1.3; } },
+
+  { id:'dozer', name:'Dust Dozer', icon:svgIcon('<path d="M4 26h22l6-8H10z"/><path d="M30 26h6v-8"/><circle cx="11" cy="29" r="3"/><circle cx="26" cy="29" r="3"/>'),
+    lvl:s=>s.perks.dozer||0, max:4,
+    desc:'Wide-body floor tool built for heavy accumulation. Doubles down on the big piles instead of nibbling at them.',
+    spec:s=>'HEAVY PILES  +75% RECOVERY RATE',
+    apply:s=>{ s.dozer++; } },
+
+  { id:'diver', name:'Pile Diver', icon:svgIcon('<path d="M20 31V17"/><path d="M20 17L11 8M20 17l9-9"/><circle cx="9" cy="6" r="3.2" fill="#FF6A13" stroke="none"/><circle cx="31" cy="6" r="3.2" fill="#FF6A13" stroke="none"/>'),
+    lvl:s=>s.perks.diver||0, max:3,
+    desc:'Splitter head running two tools off one hose, on a stem that gets up onto machine decks, conveyor rails and crate tops — where the dust nobody can see actually collects.',
+    spec:s=>(s.diver? 'TOOL HEADS  '+(1+s.diver)+'  →  '+(2+s.diver)
+                    : 'PULLS 2 PILES AT ONCE · UNLOCKS ELEVATED DUST'),
+    apply:s=>{ s.diver++; } },
+
+  { id:'fiber', name:'FiberLight', icon:svgIcon('<path d="M7 30L30 7"/><path d="M30 7l3-3 3 3-3 3z" fill="#FF6A13" stroke="none"/><path d="M33 10l2 2"/><path d="M13 24l2 2M20 17l2 2"/>'),
+    lvl:s=>s.perks.fiber||0, max:1,
+    desc:'Twenty-four feet of carbon fiber with a lit head on the end. Press R and he stands it up into the trusses and pulls down everything overhead — the dust nobody has touched since the building went up.',
+    spec:s=>'PRESS R · CLEARS ALL OVERHEAD DUST · 30 SEC RECHARGE',
+    apply:s=>{ s.fiber=1; } },
+
+  { id:'energy', name:'Energy Drink', icon:svgIcon('<path d="M13 12h14l-2 18H15z"/><path d="M11 12l2-6h14l2 6"/><path d="M20 17l-3 5h6l-3 5"/>'),
+    lvl:s=>s.perks.energy||0, max:6,
+    desc:'Another can off the machine by the break room. The first two take the edge off. From the third on, every can doubles your pace and doubles the shake in your hands — the only upgrade on this table we do not manufacture.',
+    spec:s=>((s.perks.energy||0)===2 ? 'THIRD CAN · SPEED ×2 · THE SHAKES'
+           : ((s.perks.energy||0)>=3 ? 'SPEED ×2 AGAIN · SHAKE ×2 AGAIN'
+           : 'WALK SPEED  +14%')),
+    apply:s=>{ s.energy=s.perks.energy||1; s.speed *= (s.energy>=3? 2 : 1.14); } },
+
+  { id:'dha', name:'Dust Hazards Analysis', icon:svgIcon('<path d="M11 5h18v24H11z"/><path d="M15 12h10M15 17h10M15 22h6"/><circle cx="28" cy="24" r="6"/><path d="M32.5 28.5L36 32"/>'),
+    lvl:s=>s.perks.dha||0, max:4,
+    desc:'An engineer walks the plant and documents where dust collects, how much is too much, and what to do about it — the study NFPA 652 asks every owner to have. Each pass covers more of the building.',
+    spec:s=>'DUST LEVEL RISES 22% SLOWER',
+    apply:s=>{ s.dha++; } }
+];
+
+function pickThree(){
+  // a gated card stays out of the deck until the system can actually run it
+  const pool=REWARDS.filter(r=>r.lvl(S)<r.max && (!r.gate || r.gate(S)));
+  const weighted=[];
+  pool.forEach(r=>{
+    let w=3;
+    if(r.lvl(S)===0) w=5;
+    if(r.id==='norris') w=9;
+    if(r.id==='series') w=S.forkRuns>0? 8:2;   // sells itself once you've seen a truck
+    if(r.id==='fiber' && S.fiber===0 && PILES.some(p=>p.kind==='high'||p.kind==='rafter')) w=9;
+    if(r.id==='drop' && S.dropCount<=3) w=6;
+    for(let i=0;i<w;i++) weighted.push(r);
+  });
+  const out=[];
+  while(out.length<3 && weighted.length){
+    const r=weighted[Math.floor(Math.random()*weighted.length)];
+    if(!out.includes(r)) out.push(r);
+    if(out.length>=pool.length) break;
+  }
+  return out;
+}
+
+const rewardScreen=document.getElementById('rewardScreen');
+const rewardGrid=document.getElementById('rewardGrid');
+let pendingCards=[];
+function openRewards(){
+  pendingCards=pickThree();
+  if(!pendingCards.length) return;
+  rewardGrid.innerHTML='';
+  pendingCards.forEach((r,i)=>{
+    const lv=r.lvl(S);
+    const b=document.createElement('button');
+    b.className='rcard'; b.type='button';
+    b.innerHTML='<span class="num">0'+(i+1)+' / CARD</span>'+
+      '<div class="ico">'+r.icon+'</div>'+
+      '<h4>'+r.name+'</h4>'+
+      '<div class="lvl">'+(lv? 'INSTALLED ×'+lv+' — STACKS TO ×'+(lv+1) : 'NOT YET INSTALLED')+'</div>'+
+      '<p>'+r.desc+'</p>'+
+      '<div class="spec">'+r.spec(S)+'</div>';
+    b.addEventListener('click',()=>takeReward(i));
+    rewardGrid.appendChild(b);
+  });
+  document.getElementById('rewardTitle').textContent =
+    S.spillsCleared<=1 ? 'Your rep is in the building' : 'Pick one card';
+  rewardScreen.classList.add('show');
+  S.running=false;
+  humSet(0);
+  blip(660,.12,'triangle',.16); setTimeout(()=>blip(990,.2,'triangle',.14),110);
+}
+function takeReward(i){
+  const r=pendingCards[i]; if(!r) return;
+  S.perks[r.id]=(S.perks[r.id]||0)+1;
+  r.apply(S);
+  if(r.id==='hose') buildRope();
+  rewardScreen.classList.remove('show');
+  S.running=true;
+  toast(r.name+' installed');
+  blip(520,.1,'square',.2); setTimeout(()=>blip(780,.22,'square',.18),90);
+  syncHUD();
+}
+
+/* ===================== HUD ===================== */
+const el=id=>document.getElementById(id);
+const hud=el('hud');
+function toast(html){
+  const d=document.createElement('div'); d.className='toast'; d.innerHTML=html;
+  el('toasts').appendChild(d);
+  setTimeout(()=>d.remove(),1700);
+}
+function showEvent(html){ el('eventText').innerHTML=html; el('eventChip').classList.add('show'); }
+function hideEvent(){ el('eventChip').classList.remove('show'); }
+function syncHUD(){
+  el('sHose').textContent=FT(S.hoseLen)+' ft';
+  el('sBore').textContent=(1.5+S.bore*0.25).toFixed(2)+' in.';
+  el('sCfm').textContent=Math.round(320+(S.perks.hp||0)*90+S.bore*55)+' CFM';
+  el('sLift').textContent=Math.round(95+(S.perks.hp||0)*11)+' in.';
+  el('sDrops').textContent=S.dropCount;
+  el('sReach').textContent=(1+S.diver)+(S.diver?' · elevated':'');
+  const p=el('perks'); p.innerHTML='';
+  REWARDS.forEach(r=>{
+    const lv=S.perks[r.id]||0; if(!lv) return;
+    const d=document.createElement('div'); d.className='perk';
+    d.innerHTML=r.name+' <span class="lv">×'+lv+'</span>';
+    p.appendChild(d);
+  });
+}
+function mmss(t){
+  t=Math.max(0,t);
+  const m=Math.floor(t/60), s=Math.floor(t%60);
+  return m+':'+(s<10?'0':'')+s;
+}
+
+/* minimap */
+const mapC=el('map'), mg=mapC.getContext('2d');
+const MW=mapC.width, MH=mapC.height;
+const mx=x=>(x+HX)/(HX*2)*MW, mz=z=>(z+HZ)/(HZ*2)*MH;
+let mapAcc=0;
+function drawMap(){
+  mg.clearRect(0,0,MW,MH);
+  mg.fillStyle='#12171d'; mg.fillRect(0,0,MW,MH);
+  mg.fillStyle='#242c35';
+  OBST.forEach(o=>{ mg.fillRect(mx(o.x0),mz(o.z0),mx(o.x1)-mx(o.x0),mz(o.z1)-mz(o.z0)); });
+  DROPS.forEach((d,i)=>{
+    mg.fillStyle = i===S.connected? '#C9E265':'#F2B01E';
+    mg.fillRect(mx(d.x)-2.5,mz(d.z)-2.5,5,5);
+  });
+  const bx=(BAG.obst.x0+BAG.obst.x1)/2, bz=(BAG.obst.z0+BAG.obst.z1)/2;
+  mg.fillStyle='#DAD2BD'; mg.fillRect(mx(bx)-4,mz(bz)-4,8,8);
+  mg.strokeStyle='#F2B01E'; mg.lineWidth=1; mg.strokeRect(mx(bx)-4.5,mz(bz)-4.5,9,9);
+  PILES.forEach(p=>{
+    const r=1.4+p.amount*1.1;
+    mg.fillStyle = p.spill? 'rgba(255,106,19,.95)'
+      : (p.kind==='high'||p.kind==='rafter'? 'rgba(191,228,255,.9)'
+      : (p.kind==='raised'? 'rgba(255,203,130,.9)':'rgba(180,168,146,.85)'));
+    mg.beginPath(); mg.arc(mx(p.x),mz(p.z),r,0,7); mg.fill();
+  });
+  mg.fillStyle='#3DDD5A'; mg.fillRect(mx(EXIT.x)-3,mz(EXIT.z)-3,6,6);
+  if(LIFT.g.visible){
+    mg.fillStyle='#E2A21C';
+    mg.fillRect(mx(LIFT.g.position.x)-4,mz(LIFT.g.position.z)-4,8,8);
+  }
+  if(CART.g.visible){
+    mg.fillStyle='#E9E7E0';
+    mg.fillRect(mx(CART.x)-3,mz(CART.z)-3,6,6);
+  }
+  mg.fillStyle='#fff'; mg.beginPath(); mg.arc(mx(P.x),mz(P.z),3.2,0,7); mg.fill();
+  mg.strokeStyle='rgba(255,255,255,.55)'; mg.lineWidth=1.5;
+  mg.beginPath(); mg.moveTo(mx(P.x),mz(P.z));
+  mg.lineTo(mx(P.x)+Math.sin(P.dir)*7, mz(P.z)+Math.cos(P.dir)*7); mg.stroke();
+}
+
+/* ===================== INPUT ===================== */
+const keys={};
+addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  keys[k]=true;
+  if(k===' ') e.preventDefault();
+  if(k==='escape'||k==='p'){ if(S.paused) resumeGame(); else pauseGame(k==='escape'); return; }
+  if(S.paused) return;
+  if(rewardScreen.classList.contains('show')){
+    if(k==='1')takeReward(0); if(k==='2')takeReward(1); if(k==='3')takeReward(2);
+    return;
+  }
+  if(k==='e') tryConnect();
+  if(k==='q') fireNorris();
+  if(k==='r') fireFiber();
+  if(k==='m') toggleMute();
+});
+addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+let mouseDown=false;
+renderer.domElement.addEventListener('pointerdown',()=>{mouseDown=true;});
+addEventListener('pointerup',()=>{mouseDown=false;});
+addEventListener('blur',()=>{mouseDown=false;for(const k in keys)keys[k]=false;});
+
+
+const NORRIS_DUR=5, NORRIS_CD=30, FIBER_DUR=6, FIBER_R=7.5;
+function fireFiber(){
+  if(!S.running || !S.fiber) return;
+  if(S.connected<0){ toast('Plug in first'); blip(150,.12,'square',.14); return; }
+  if(S.fiberT>0) return;
+  if(S.fiberCd>0){ blip(150,.12,'square',.14); return; }
+  S.fiberT=FIBER_DUR;
+  toast('FiberLight up');
+  blip(540,.3,'triangle',.18); setTimeout(()=>blip(810,.35,'triangle',.14),160);
+}
+function fireNorris(){
+  if(!S.running || !S.norris) return;
+  if(S.connected<0){ toast('Plug in first'); blip(150,.12,'square',.14); return; }
+  if(S.norrisT>0) return;
+  if(S.norrisCd>0){ blip(150,.12,'square',.14); return; }
+  S.norrisT=NORRIS_DUR;
+  toast('SUCK NORRIS');
+  blip(120,.5,'sawtooth',.3); noiseBurst(.6,.5,1200);
+  humSet(2.2);
+}
+function tryConnect(){
+  if(!S.running) return;
+  if(S.connected>=0){
+    // the coupling is at the wall — you walk the hose back to it, unless the
+    // reel can pull it back for you
+    const c=DROPS[S.connected];
+    if(S.hound){ disconnect(true); }
+    else if(Math.hypot(c.x-P.x,c.z-P.z)<2.9){ disconnect(false); }
+    else{
+      toast('Walk back to drop '+(S.connected+1)+' to unplug');
+      blip(150,.13,'square',.15);
+    }
+    return;
+  }
+  if(RET){ RET=null; clearHose(); wand.visible=false; }
+  if(CUT){ CUT=null; clearHose(); }
+  let best=-1,bd=9;
+  DROPS.forEach((d,i)=>{
+    const dist=Math.hypot(d.x-P.x,d.z-P.z);
+    if(dist<2.6 && dist<bd){ bd=dist; best=i; }
+  });
+  if(best>=0){
+    S.connected=best;
+    buildRope();
+    resetRopeTo(DROPS[best].inlet, new T.Vector3(P.x,1.1,P.z));
+    wand.visible=true; coil.visible=false;
+    blip(180,.12,'square',.3); setTimeout(()=>noiseBurst(.12,.25,600),60);
+    toast('Connected');
+  }
+}
+function disconnect(retract){
+  if(S.connected<0) return;
+  if(retract){
+    startRetract();
+  }else{
+    RET=null; clearHose();
+    wand.visible=false; coil.visible=true;
+  }
+  S.connected=-1; S.taut=0; S.needLen=0;
+  if(S.norrisT>0){ S.norrisT=0; S.norrisCd=NORRIS_CD; }   // unplugging kills the burst
+  if(S.fiberT>0){ S.fiberT=0; S.fiberCd=NORRIS_CD; }
+  norris.visible=false; pole.visible=false;
+  humSet(0);
+  blip(140,.14,'square',.22);
+}
+
+/* ===================== GAME FLOW ===================== */
+function startGame(){
+  audioInit();
+  if(AC && AC.state==='suspended') AC.resume();
+  // clear world
+  PILES.slice().forEach(removePile);
+  DROPS.forEach(d=>scene.remove(d.group)); DROPS.length=0;
+  S=freshState();
+  refreshDrops(S.dropCount);
+  P.x=0; P.z=15; P.dir=Math.PI; P.bob=0;
+  // undo everything the evacuation left behind
+  player.visible=true; player.position.set(P.x,0,P.z); player.rotation.y=P.dir;
+  legL.rotation.x=legR.rotation.x=armL.rotation.x=armR.rotation.x=0;
+  sirenStop();
+  hideEvent();
+  BAG.tilt.rotation.z=0;   // stand the bulk bag back up
+  BAG.obst.x0=BAG.home.x0; BAG.obst.x1=BAG.home.x1;
+  BAG.obst.z0=BAG.home.z0; BAG.obst.z1=BAG.home.z1; BAG.obst.h=BAG.home.h;
+  scene.fog.color.setHex(0x0b0f14); scene.background.copy(scene.fog.color);
+  for(let i=0;i<PMAX;i++){ pLife[i]=0; pPos[i*3+1]=-200; }
+  pGeo.attributes.position.needsUpdate=true;
+  // clear the hose outright — freshState() already zeroed S.connected, so
+  // disconnect() would bail early and leave last shift's hose in the scene
+  RET=null; CUT=null; clearHose(); humSet(0);
+  wand.visible=false; norris.visible=false; pole.visible=false; coil.visible=true;
+  player.rotation.z=0;
+  hoseMat.color.setHex(0x23272c);
+  LIFT.state='idle'; LIFT.g.visible=false; LIFT.crate.visible=false;
+  LIFT.forks.position.y=.12; STAGE.crate.visible=true;
+  CART.state='idle'; CART.g.visible=false;
+  for(let i=0;i<DOORS.length;i++) setDoor(i,0);
+  buildRope();
+  for(let i=0;i<3;i++) spawnPile();
+  el('startScreen').classList.remove('show');
+  el('endScreen').classList.remove('show');
+  el('pauseScreen').classList.remove('show');
+  hud.classList.add('live');
+  el('vig').classList.remove('alarm');
+  syncHUD();
+  S.running=true;
+  musicStart();
+  camera.position.set(P.x+CAM_OFF.x,CAM_OFF.y,P.z+CAM_OFF.z);
+  camera.lookAt(P.x,1.2,P.z);
+  setTimeout(()=>toast('Find a drop &mdash; press E'),400);
+}
+el('startBtn').addEventListener('click',startGame);
+el('againBtn').addEventListener('click',startGame);
+el('pauseBtn').addEventListener('click',()=>pauseGame(false));
+el('quitBtn').addEventListener('click',()=>pauseGame(true));
+el('resumeBtn').addEventListener('click',resumeGame);
+el('endBtn').addEventListener('click',quitShift);
+
+/* ---------- pause / quit ---------- */
+function musicSuspend(off){
+  if(!AC) return;
+  if(off) MUS.on=false;
+  else { MUS.on=true; MUS.next=AC.currentTime+.06; }
+}
+function pauseGame(quitConfirm){
+  if(S.over || S.paused || !(S.running||S.escaping)) return;
+  S.paused=true;
+  for(const k in keys) keys[k]=false;
+  mouseDown=false;
+  humSet(0); musicSuspend(true);
+  el('pauseTitle').innerHTML = quitConfirm? 'End this <em>shift</em>?' : 'Shift <em>paused</em>';
+  el('pauseText').textContent = quitConfirm
+    ? 'The dust stops where it is. Ending now discards this run and hands the hose to the next operator.'
+    : 'Nothing is accumulating while you are stopped. The clock is holding.';
+  const mins=Math.floor(S.t/60), secs=Math.floor(S.t%60);
+  el('pauseStats').innerHTML=
+    '<div><span>'+mins+':'+(secs<10?'0':'')+secs+'</span><em>Elapsed</em></div>'+
+    '<div><span>'+Math.round(S.danger)+'%</span><em>Dust level</em></div>'+
+    '<div><span>'+Math.round(S.cleaned*38)+'</span><em>Lb recovered</em></div>'+
+    '<div><span>'+Object.values(S.perks).reduce((a,b)=>a+b,0)+'</span><em>Upgrades</em></div>';
+  el('pauseScreen').classList.add('show');
+}
+function resumeGame(){
+  if(!S.paused) return;
+  S.paused=false;
+  el('pauseScreen').classList.remove('show');
+  musicSuspend(false);
+}
+function quitShift(){
+  S.paused=false; S.running=false; S.escaping=false; S.over=true;
+  el('pauseScreen').classList.remove('show');
+  sirenStop(); humSet(0); musicStop();
+  hud.classList.remove('live');
+  el('vig').classList.remove('alarm');
+  scene.fog.color.setHex(0x0b0f14); scene.background.copy(scene.fog.color);
+  el('startScreen').classList.add('show');
+}
+function endGame(win){
+  S.over=true; S.running=false;
+  sirenStop(); humSet(0); musicStop(); sting(win);
+  hud.classList.remove('live');
+  const t=el('endTitle'), x=el('endText');
+  if(win){
+    t.innerHTML='Shift <em>survived</em>';
+    x.textContent='6:00 a.m. The floor is under control, the level never topped out, and day shift walks into a plant that is not a hazard. That is what a properly specified central vacuum system does every night, without the running.';
+  }else{
+    t.innerHTML='The plant <em>went up</em>';
+    x.textContent='The dust level topped out and the deflagration took the building. You made it to the door — the plant did not. Loose combustible dust is not a housekeeping annoyance; it is the fuel.';
+  }
+  const mins=Math.floor(S.t/60), secs=Math.floor(S.t%60);
+  el('endStat').innerHTML=
+    '<div><span>'+mins+':'+(secs<10?'0':'')+secs+'</span><em>Time on the floor</em></div>'+
+    '<div><span>'+Math.round(S.cleaned*38)+'</span><em>Lb recovered</em></div>'+
+    '<div><span>'+S.spillsCleared+'</span><em>Spills cleared</em></div>'+
+    '<div><span>'+Object.values(S.perks).reduce((a,b)=>a+b,0)+'</span><em>Upgrades installed</em></div>';
+  el('endScreen').classList.add('show');
+}
+
+function beginEscape(){
+  S.escaping=true; S.escT=0;
+  disconnect();
+  sirenStart();
+  el('vig').classList.add('alarm');
+  toast('ALARM &mdash; EVACUATE');
+}
+
+/* ===================== MAIN LOOP ===================== */
+const tmpA=new T.Vector3(), tmpB=new T.Vector3(), tmpC=new T.Vector3();
+let last=performance.now();
+S=freshState();
+refreshDrops(2);
+buildRope();
+
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt=Math.min(.05,(now-last)/1000); last=now;
+
+  if(!S.paused && (S.running || S.escaping)) step(dt);
+
+  // camera
+  const shake=S.shake>0? S.shake:0;
+  // the camera has to keep up with a caffeinated operator
+  camera.position.lerp(tmpA.set(P.x+CAM_OFF.x, CAM_OFF.y, P.z+CAM_OFF.z), clamp(.09*(S.speed/7.2),.09,.42));
+  if(shake>0){
+    camera.position.x+=rnd(-shake,shake); camera.position.y+=rnd(-shake,shake);
+    S.shake=Math.max(0,S.shake-dt*1.6);
+  }
+  camera.lookAt(P.x, 1.4, P.z);
+  updateFaders(dt);
+  sun.target.position.set(P.x,0,P.z); sun.position.set(P.x+26,46,P.z+18);
+  renderer.render(scene,camera);
+}
+
+function step(dt){
+  if(S.running) S.t+=dt;
+
+  /* ---------- escape cutscene ---------- */
+  if(S.escaping){
+    S.escT+=dt;
+    const dx=EXIT.x-P.x, dz=EXIT.z-P.z, d=Math.hypot(dx,dz);
+    if(d>.6){
+      const sp=S.speed*1.45*dt;
+      P.x+=dx/d*sp; P.z+=dz/d*sp;
+      P.dir=Math.atan2(dx,dz);
+      P.bob+=dt*16;
+    }
+    player.position.set(P.x,0,P.z);
+    player.rotation.y=P.dir;
+    legL.rotation.x=Math.sin(P.bob)*.75; legR.rotation.x=-Math.sin(P.bob)*.75;
+    armL.rotation.x=-Math.sin(P.bob)*.8; armR.rotation.x=Math.sin(P.bob)*.8;
+    // flashing alarm
+    const fl=(Math.sin(S.escT*9)+1)/2;
+    scene.fog.color.setRGB(.09+fl*.22,.05,.05);
+    scene.background.setRGB(.09+fl*.22,.05,.05);
+    updateParticles(dt);
+    if(S.escT>3.4 && !S.boom){
+      S.boom=true;
+      el('flash').animate([{opacity:0},{opacity:1,offset:.05},{opacity:0}],{duration:900,easing:'ease-out'});
+      noiseBurst(1.6,.9,340); blip(55,1.4,'sawtooth',.5);
+      S.shake=1.2;
+      player.visible=false;
+      setTimeout(()=>endGame(false),1100);
+    }
+    return;
+  }
+
+  updateLift(dt);
+  updateCart(dt);
+
+  /* ---------- stunned: he's on the floor, and the dust keeps settling ---------- */
+  const stunned=S.stun>0;
+  if(stunned){
+    S.stun-=dt;
+    if(S.stun<=0){ S.stun=0; toast('Back on your feet'); blip(520,.16,'triangle',.16); }
+  }
+  player.rotation.z += ((stunned? -1.35:0)-player.rotation.z)*Math.min(1,dt*7);
+
+  /* ---------- movement ---------- */
+  let ix=0, iz=0;
+  if(!stunned){
+    if(keys['w']||keys['arrowup']) iz-=1;
+    if(keys['s']||keys['arrowdown']) iz+=1;
+    if(keys['a']||keys['arrowleft']) ix-=1;
+    if(keys['d']||keys['arrowright']) ix+=1;
+  }
+  const moving=(ix||iz);
+  const prevX=P.x, prevZ=P.z;
+  if(moving){
+    // caffeine can push the per-frame step past the thickness of a machine, so
+    // the move is walked in short hops with collision run on each one
+    const l=Math.hypot(ix,iz), dist=S.speed*dt;
+    const hops=Math.max(1,Math.ceil(dist/0.35));
+    const hx=ix/l*dist/hops, hz=iz/l*dist/hops;
+    for(let k=0;k<hops;k++){
+      P.x+=hx; P.z+=hz;
+      tmpB.set(P.x,0,P.z); collideCircle(tmpB,.55); P.x=tmpB.x; P.z=tmpB.z;
+    }
+    P.bob+=dt*11*Math.min(3.2,S.speed/7.2);
+  }else{
+    P.bob*=(1-dt*7);
+    tmpB.set(P.x,0,P.z); collideCircle(tmpB,.55); P.x=tmpB.x; P.z=tmpB.z;
+  }
+
+  /* ---------- facing ---------- */
+  // Walking turns the operator and the tool is rigid in his hands, so the wand
+  // stays exactly where you last pointed it. Nothing re-aims it on its own.
+  if(moving){
+    const faceDir=Math.atan2(ix,iz);
+    let dDiff=((faceDir-P.dir+Math.PI*3)%(Math.PI*2))-Math.PI;
+    P.dir+=dDiff*Math.min(1,dt*12);
+  }
+  player.position.set(P.x,0,P.z);
+  player.rotation.y=P.dir;
+  const sw=moving?Math.sin(P.bob)*.62:0;
+  legL.rotation.x=sw; legR.rotation.x=-sw;
+  if(S.connected>=0){ armR.rotation.x=-1.15; armL.rotation.x=-.92; }
+  else{ armR.rotation.x=sw*.7; armL.rotation.x=-sw*.7; }
+  player.position.y=moving? Math.abs(Math.sin(P.bob))*.045 : 0;
+
+  /* ---------- hose + wand ---------- */
+  const wandLen=S.reach;
+  let handX=P.x+Math.sin(P.dir+.55)*.5, handZ=P.z+Math.cos(P.dir+.55)*.5;
+
+  if(S.connected>=0){
+    const d=DROPS[S.connected];
+    const maxLen=(nodeCount-1)*SEG;
+    tmpA.copy(d.inlet);
+    tmpB.set(handX,1.05,handZ);
+    let need=solveTaut(tmpA,tmpB);
+    // Out of hose: refuse only the moves that ask for more than is on the reel.
+    // Walking back toward the drop always works, so you can never get stranded.
+    if(need>maxLen*0.985 && need>S.needLen+0.002){
+      P.x=prevX; P.z=prevZ;
+      player.position.set(P.x,player.position.y,P.z);
+      handX=P.x+Math.sin(P.dir+.55)*.5; handZ=P.z+Math.cos(P.dir+.55)*.5;
+      tmpB.set(handX,1.05,handZ);
+      need=solveTaut(tmpA,tmpB);
+    }
+    S.needLen=need;
+    S.taut=clamp(need/maxLen,0,1);
+    // slack hose sags; the rest of the run is still on the reel
+    const desired=Math.min(maxLen,Math.max(need*1.14,need+0.15));
+    solveRope(dt,tmpA,tmpB,Math.max(.14,desired/(nodeCount-1)));
+    drawHose();
+    wand.visible=true;
+  }else{
+    if(!RET) wand.visible=false;
+    S.taut=0; S.needLen=0;
+  }
+  updateRetract(dt);
+
+  // three cans in and the hands won't hold still — the tool wanders, you don't
+  const jit = S.energy>=3
+    ? (Math.sin(S.t*22.1)*0.115 + Math.sin(S.t*35.7)*0.07) * Math.pow(2,S.energy-3)
+    : 0;
+  const aimDir=P.dir+jit;
+  NOZZLE.set(handX+Math.sin(aimDir)*wandLen, Math.max(.18,1.1-wandLen*.2+jit*.25), handZ+Math.cos(aimDir)*wandLen);
+  // Suck Norris burst timing
+  if(S.norrisT>0){
+    S.norrisT-=dt;
+    if(S.norrisT<=0){ S.norrisT=0; S.norrisCd=NORRIS_CD; humSet(S.vacuuming?1:.28); }
+  }else if(S.norrisCd>0){ S.norrisCd=Math.max(0,S.norrisCd-dt); }
+  const norrisOn = S.norrisT>0 && S.connected>=0;
+  norris.visible=norrisOn;
+
+  // FiberLight timing — same recharge as the Norris, tracked on its own
+  if(S.fiberT>0){
+    S.fiberT-=dt;
+    if(S.fiberT<=0){ S.fiberT=0; S.fiberCd=NORRIS_CD; }
+  }else if(S.fiberCd>0){ S.fiberCd=Math.max(0,S.fiberCd-dt); }
+  const fiberOn = S.fiberT>0 && S.connected>=0;
+  pole.visible=fiberOn;
+  if(fiberOn){
+    pole.position.set(handX,1.02,handZ);
+    pole.rotation.set(.26+Math.sin(S.t*2.2)*.05, P.dir, 0);   // sweeping the rafters
+  }
+
+  if(S.connected>=0){
+    wand.visible=!norrisOn && !fiberOn;
+    if(norrisOn){
+      norris.position.set((handX+NOZZLE.x)/2,(1.12+NOZZLE.y)/2,(handZ+NOZZLE.z)/2);
+      norris.lookAt(NOZZLE.x,NOZZLE.y,NOZZLE.z);
+    }
+    wand.position.set((handX+NOZZLE.x)/2,(1.05+NOZZLE.y)/2,(handZ+NOZZLE.z)/2);
+    wand.lookAt(NOZZLE.x,NOZZLE.y,NOZZLE.z);
+    const bw=1+S.bore*.2;
+    wandTube.scale.set(bw,Math.max(.2,wandLen),bw);
+    wandHead.position.set(0,0,wandLen/2);
+  }
+
+  /* ---------- drops UI ---------- */
+  let nearDrop=-1, nd=9;
+  DROPS.forEach((d,i)=>{
+    const dist=Math.hypot(d.x-P.x,d.z-P.z);
+    if(dist<2.6&&dist<nd){nd=dist;nearDrop=i;}
+    const connected=(i===S.connected);
+    d.lamp.emissive.setHex(connected?0x22aaff:0x55ee66);
+    d.halo.color.setHex(connected?0x22aaff:0x55ee66);
+    d.ring.material.opacity = (dist<3.4&&S.connected<0)? .35+Math.sin(S.t*5)*.22 : .18;
+  });
+  const promptEl=el('prompt');
+  promptEl.classList.toggle('bad',stunned);
+  if(stunned){
+    promptEl.innerHTML='Stunned &mdash; '+Math.ceil(S.stun)+'s';
+    promptEl.classList.add('show');
+  }else if(S.connected<0 && nearDrop>=0){
+    promptEl.innerHTML='Press E to connect'; promptEl.classList.add('show');
+  }else if(S.connected>=0 && nearDrop===S.connected){
+    promptEl.innerHTML='Press E to unplug'; promptEl.classList.add('show');
+  }else if(S.connected>=0 && S.taut>0.97){
+    promptEl.innerHTML='Hose is taut &mdash; move back or find a closer drop'; promptEl.classList.add('show');
+  }else if(S.connected<0 && PILES.length>3){
+    promptEl.innerHTML='Suction is off &mdash; plug into a drop'; promptEl.classList.add('show');
+  }else{
+    promptEl.classList.remove('show');
+  }
+
+  /* ---------- vacuuming ---------- */
+  const wantVac=!stunned && (mouseDown||keys[' ']);
+  S.vacuuming = wantVac && S.connected>=0;
+  humSet(S.vacuuming?1:(S.connected>=0?.28:0));
+
+  if(S.vacuuming){
+    // the Norris has a mouth on it, so it takes the whole area at once
+    const burst=S.norrisT>0;
+    const baseRange=(1.75+S.reach*0.35)+(burst?1.5:0);
+    // One tool head pulls one pile. The Pile Diver splits the hose so it works
+    // several at once, and its stem reaches the dust sitting up on equipment.
+    const heads=burst? 99 : 1+S.diver;
+    const cands=[];
+    for(let i=0;i<PILES.length;i++){
+      const p=PILES[i];
+      if(p.kind==='high'||p.kind==='rafter') continue;   // overhead is FiberLight work
+      if(p.kind==='raised' && S.diver===0) continue;
+      let r=baseRange;
+      if(p.kind==='raised') r+=1.25;
+      const d=Math.hypot(p.x-NOZZLE.x, p.z-NOZZLE.z);
+      if(d<r) cands.push({p:p,d:d});
+    }
+    cands.sort((a,b)=>a.d-b.d);
+    const n=Math.min(heads,cands.length);
+    for(let i=0;i<n;i++){
+      const p=cands[i].p;
+      let rate=S.suction;
+      if(p.kind==='big') rate*=(1+S.dozer*0.75);
+      if(p.kind==='raised') rate*=(0.8+S.diver*0.2);
+      if(burst) rate*=10;
+      const take=Math.min(p.amount, rate*dt);
+      p.amount-=take; S.cleaned+=take; S.prog+=take;
+      S.danger=Math.max(0,S.danger-take*1.05);
+      if(Math.random()<0.85) emitParticle(p.x,p.y+.3,p.z);
+      const bs = p.kind==='big'?1.35 : (p.kind==='raised'?.8:1);
+      p.g.scale.setScalar(bs*(0.24+clamp(p.amount/p.max,0,1)*0.76));
+      if(p.amount<=0.001){
+        const sp=p.spill;
+        removePile(p);
+        blip(880,.1,'triangle',.14);
+        if(sp && !PILES.some(q=>q.spill===sp)){
+          S.spillsCleared++;
+          S.prog+=Math.max(2.2,S.progNeed*0.35);
+          toast('Spill cleared &mdash; bonus');
+          blip(660,.12,'triangle',.16);
+        }
+      }
+    }
+  }
+
+  /* FiberLight sweep: everything overhead in range comes down at once */
+  if(S.fiberT>0 && S.connected>=0){
+    for(let i=PILES.length-1;i>=0;i--){
+      const p=PILES[i];
+      if(p.kind!=='high' && p.kind!=='rafter') continue;
+      if(Math.hypot(p.x-P.x,p.z-P.z)>FIBER_R) continue;
+      const take=Math.min(p.amount,2.4*dt);
+      p.amount-=take; S.cleaned+=take; S.prog+=take;
+      S.danger=Math.max(0,S.danger-take*1.05);
+      if(Math.random()<0.9) emitParticle(p.x,p.y+.3,p.z);
+      p.g.scale.setScalar(clamp(p.amount/p.max,0,1)*.76+.24);
+      if(p.kind==='rafter') p.g.scale.set(1.1,.55,1.1).multiplyScalar(clamp(p.amount/p.max,0,1)*.76+.24);
+      if(p.amount<=0.001){
+        const sp=p.spill;
+        removePile(p);
+        blip(940,.1,'triangle',.14);
+        if(sp && !PILES.some(q=>q.spill===sp)){
+          S.spillsCleared++;
+          S.prog+=Math.max(2.2,S.progNeed*0.35);
+          toast('Spill cleared &mdash; bonus');
+        }
+      }
+    }
+  }
+
+  if(S.prog>=S.progNeed){
+    S.prog-=S.progNeed;
+    S.progNeed*=1.16;
+    openRewards();
+  }
+  updateParticles(dt);
+
+  /* ---------- spawning + danger ---------- */
+  /* ---------- the bulk bag goes over at 8:00 ---------- */
+  if(!S.bagWarned && S.t>=BAG_T-25){
+    S.bagWarned=true;
+    showEvent('Bulk bag leaning &mdash; center aisle');
+    toast('That bulk bag is leaning');
+    blip(300,.3,'square',.16);
+  }
+  if(S.bagWarned && !S.bagDropped){
+    BAG.tilt.rotation.z=.06+Math.sin(S.t*3.4)*.045;   // rocking on the pallet edge
+  }
+  if(!S.bagDropped && S.t>=BAG_T){
+    S.bagDropped=true;
+    toast('Bulk bag going over!');
+    blip(200,.55,'sawtooth',.18);
+  }
+  if(S.bagDropped && BAG.tilt.rotation.z<Math.PI/2){
+    BAG.tilt.rotation.z=Math.min(Math.PI/2, BAG.tilt.rotation.z+dt*(0.85+BAG.tilt.rotation.z*3.4));
+    if(BAG.tilt.rotation.z>=Math.PI/2 && !S.bagSpilled){ S.bagSpilled=true; bulkBagSpill(); }
+  }
+
+  const ramp=1+S.t/SHIFT*0.7;
+  S.pileTimer-=dt*ramp;
+  if(S.pileTimer<=0){ spawnPile(); S.pileTimer=rnd(5.8,8.8); }
+  S.spillTimer-=dt;
+  if(S.spillTimer<=0){ spawnSpill(); S.spillTimer=rnd(26,38); }
+
+  let total=0;
+  for(let i=0;i<PILES.length;i++){
+    const p=PILES[i];
+    // only floor dust keeps accumulating; elevated deposits sit where they are
+    if((p.kind==='floor'||p.kind==='big') && p.amount<p.max*1.5) p.amount+=dt*0.013;
+    total+=p.amount;
+    if(p.ring) p.ring.material.opacity=.35+Math.sin(S.t*4+i)*.22;
+  }
+  const dhaCut=Math.pow(0.78,S.dha);
+  S.danger+=dt*total*0.055*dhaCut;
+  S.danger-=dt*0.34;
+  S.danger=clamp(S.danger,0,100);
+
+  /* ---------- ambience by danger ---------- */
+  const dpct=S.danger/100;
+  musicMode(dpct>0.8? 'danger':'calm');
+  const haze=0.06+dpct*0.1;
+  scene.fog.color.setRGB(0.043+haze*0.5, 0.058+haze*0.32, 0.078+haze*0.18);
+  scene.background.copy(scene.fog.color);
+  el('vig').classList.toggle('alarm', dpct>0.82 && Math.sin(S.t*6)>0);
+
+  /* ---------- HUD ---------- */
+  el('clock').textContent=mmss(SHIFT-S.t);
+  el('cleaned').textContent=Math.round(S.cleaned*38)+' LB RECOVERED';
+  el('dangerFill').style.width=dpct*100+'%';
+  el('dangerPct').textContent=Math.round(dpct*100)+'%';
+  function abilChip(chipId,textId,owned,tLeft,cd,name){
+    const c=el(chipId);
+    c.classList.toggle('show',!!owned);
+    if(!owned) return;
+    const live=tLeft>0;
+    c.classList.toggle('live',live);
+    c.classList.toggle('ready',!live && cd<=0);
+    el(textId).textContent = live? name+' '+tLeft.toFixed(1)+'s'
+      : (cd>0? 'Recharging '+Math.ceil(cd)+'s' : name+' ready');
+  }
+  abilChip('norrisChip','norrisText',S.norris,S.norrisT,S.norrisCd,'Suck Norris');
+  abilChip('fiberChip','fiberText',S.fiber,S.fiberT,S.fiberCd,'FiberLight');
+  const upct=clamp(S.prog/S.progNeed,0,1);
+  el('upFill').style.width=upct*100+'%';
+  el('upPct').textContent=Math.round(upct*100)+'%';
+  el('upWrap').classList.toggle('ready',upct>0.85);
+  const hf=el('hoseFill');
+  hf.style.width=(S.connected>=0? S.taut*100:0)+'%';
+  hf.classList.toggle('taut',S.taut>0.86);
+  const st=el('hoseState');
+  if(S.connected>=0){ st.textContent='Connected — drop '+(S.connected+1); st.classList.add('on'); }
+  else{ st.textContent='Hose stowed — find a drop'; st.classList.remove('on'); }
+  el('hosePct').textContent=(S.connected>=0? FT(S.taut*S.hoseLen):0)+' / '+FT(S.hoseLen)+' ft';
+
+  mapAcc+=dt; if(mapAcc>0.1){ mapAcc=0; drawMap(); }
+
+  /* ---------- win / lose ---------- */
+  if(S.t>=SHIFT){ S.running=false; endGame(true); }
+  if(S.danger>=100 && !S.escaping){ S.running=false; beginEscape(); }
+}
+
+drawMap(); syncHUD();
+if(location.search.indexOf('debug')>=0){
+  window.__G={get S(){return S;},get P(){return P;},get PILES(){return PILES;},
+              get DROPS(){return DROPS;},get nodeCount(){return nodeCount;},keys:keys,
+              step:step,tryConnect:tryConnect,startGame:startGame};
+}
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
