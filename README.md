@@ -23,6 +23,12 @@ Suction only runs while you're plugged into a drop, and the hose does not stretc
 
 Watch the aisles: **lift trucks** run four different lanes through the plant and the **plant manager's golf cart** wanders wherever it likes. Either one will crush your hose and flatten you for ten seconds. At the eight-minute mark, a one-ton bulk bag goes over in the center aisle.
 
+## Leaderboard
+
+Your score is the **pounds of dust recovered**. Finish in the top ten and you're asked for a name, and the board shows on the title screen for the next player to chase — with a ✓ against anyone who lasted the full shift.
+
+The board is stored in the browser that's playing, so a booth machine builds one shared board across everyone who plays it. It isn't a global board across the internet: two different computers keep two different boards. There's a **Reset board** control on the title screen for clearing it between events.
+
 ## Upgrade cards
 
 Every pound you recover fills the upgrade meter. Fill it and three cards come up — they stack for the rest of the shift.
