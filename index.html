@@ -2254,6 +2254,43 @@ function awardCapital(win){
    that means everyone who plays it shares one board. */
 const BOARD_KEY='dustshift.board.v1', NAME_KEY='dustshift.name', BOARD_MAX=10;
 let BOARD_MEM=[];
+
+/* The global board lives in Supabase. The anon key is public by design and
+   the table only allows read and insert — nobody can edit or wipe the board.
+   Where the network or the host's policy blocks it (the Claude artifact
+   sandbox does), everything falls back to this machine's own board. */
+const SB_URL='https://uyaobieharwbxajgcrgb.supabase.co/rest/v1/scores';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5YW9iaWVoYXJ3YnhhamdjcmdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMzg0MjIsImV4cCI6MjEwNTYxNDQyMn0.iISaYOgwVTrwTe6jbncJc-kwaIxzBtMD7dFuYJa9xoo';
+let GLOBAL_ROWS=null;                       // null = no global board this visit
+function sbHeaders(extra){
+  const h={apikey:SB_KEY,Authorization:'Bearer '+SB_KEY};
+  if(extra) for(const k in extra) h[k]=extra[k];
+  return h;
+}
+function globalFetch(){
+  if(typeof fetch!=='function') return Promise.resolve(null);
+  return fetch(SB_URL+'?select=name,score,time_s,survived&order=score.desc,created_at.asc&limit='+BOARD_MAX,
+               {headers:sbHeaders()})
+    .then(r=>{ if(!r.ok) throw 0; return r.json(); })
+    .then(rows=>{
+      if(!Array.isArray(rows)) throw 0;
+      GLOBAL_ROWS=rows.map(x=>({name:String(x.name||'Anonymous').slice(0,14),
+                                score:Math.max(0,+x.score||0),
+                                time:Math.max(0,+x.time_s||0),
+                                survived:!!x.survived}));
+      return GLOBAL_ROWS;
+    })
+    .catch(()=>{ GLOBAL_ROWS=null; return null; });
+}
+function globalSubmit(e){
+  if(typeof fetch!=='function') return Promise.resolve(false);
+  return fetch(SB_URL,{method:'POST',
+      headers:sbHeaders({'Content-Type':'application/json',Prefer:'return=minimal'}),
+      body:JSON.stringify({name:e.name,score:Math.round(e.score),
+                           time_s:Math.round(e.time||0),survived:!!e.survived})})
+    .then(r=>r.ok).catch(()=>false);
+}
+function boardRows(){ return GLOBAL_ROWS? GLOBAL_ROWS.slice() : boardLoad(); }
 function boardLoad(){
   try{
     const raw=localStorage.getItem(BOARD_KEY);
@@ -2269,17 +2306,19 @@ function boardSave(list){
 }
 function boardQualifies(score){
   if(score<=0) return false;
-  const b=boardLoad();
+  const b=boardRows();
   return b.length<BOARD_MAX || score>b[b.length-1].score;
 }
 function lastName(){ try{ return localStorage.getItem(NAME_KEY)||''; }catch(e){ return ''; } }
 function renderBoard(elId,limit,markTs){
   const host=el(elId); if(!host) return;
-  const list=boardLoad().slice(0,limit);
+  const global=!!GLOBAL_ROWS;
+  const list=boardRows().slice(0,limit);
   host.innerHTML='';
   const h=document.createElement('h3');
-  h.appendChild(document.createTextNode('Top of the board'));
-  if(list.length && elId==='startBoard'){
+  h.appendChild(document.createTextNode(global? 'Top of the board — everyone, everywhere'
+                                              : 'Top of the board — this machine'));
+  if(list.length && elId==='startBoard' && !global){
     const w=document.createElement('button');
     w.type='button'; w.className='wipe'; w.textContent='Reset board';
     let armed=false;
@@ -2298,7 +2337,8 @@ function renderBoard(elId,limit,markTs){
   }
   list.forEach((e,i)=>{
     const r=document.createElement('div');
-    r.className='row'+(markTs && e.ts===markTs? ' you':'');
+    const mine = markTs && ((e.ts && e.ts===markTs.ts) || (e.name===markTs.name && e.score===markTs.score));
+    r.className='row'+(mine? ' you':'');
     const rk=document.createElement('span'); rk.className='rk'; rk.textContent=(i+1)+'.';
     const nm=document.createElement('span'); nm.className='nm'; nm.textContent=e.name||'Anonymous';
     const lb=document.createElement('span'); lb.className='lb'; lb.textContent=e.score.toLocaleString()+' lb';
@@ -2310,6 +2350,12 @@ function renderBoard(elId,limit,markTs){
   host.appendChild(rows);
 }
 function offerBoardEntry(score,time,survived){
+  // refresh the global board first, then decide whether this run made it
+  el('nameEntry').innerHTML='';
+  renderBoard('endBoard',BOARD_MAX);
+  globalFetch().then(()=>showBoardEntry(score,time,survived));
+}
+function showBoardEntry(score,time,survived){
   const host=el('nameEntry');
   host.innerHTML='';
   if(!boardQualifies(score)){ renderBoard('endBoard',BOARD_MAX); return; }
@@ -2325,13 +2371,17 @@ function offerBoardEntry(score,time,survived){
     const name=(inp.value||'').trim().slice(0,14) || 'Anonymous';
     try{ localStorage.setItem(NAME_KEY,name); }catch(e){}
     const ts=Date.now();
+    const entry={name:name,score:score,time:time,survived:!!survived,ts:ts};
+    // always keep this machine's copy, so a booth with bad wifi still has a board
     const list=boardLoad();
-    list.push({name:name,score:score,time:time,survived:!!survived,ts:ts});
+    list.push(entry);
     list.sort((a,b)=>b.score-a.score);
     boardSave(list.slice(0,BOARD_MAX));
-    host.innerHTML='';
-    renderBoard('endBoard',BOARD_MAX,ts);
+    btn.disabled=true; inp.disabled=true; btn.textContent='Posting…';
     blip(660,.12,'triangle',.16); setTimeout(()=>blip(990,.2,'triangle',.14),110);
+    globalSubmit(entry)
+      .then(ok=>ok? globalFetch():null)
+      .then(()=>{ host.innerHTML=''; renderBoard('endBoard',BOARD_MAX,entry); });
   }
   btn.addEventListener('click',submit);
   inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); submit(); } });
@@ -2434,6 +2484,7 @@ function quitShift(){
   el('vig').classList.remove('alarm');
   scene.fog.color.setHex(0x0b0f14); scene.background.copy(scene.fog.color);
   renderBoard('startBoard',5);
+  globalFetch().then(()=>renderBoard('startBoard',5));
   el('startScreen').classList.add('show');
 }
 function endGame(win){
@@ -2846,6 +2897,7 @@ function step(dt){
 }
 
 drawMap(); syncHUD(); renderBoard('startBoard',5);
+globalFetch().then(()=>renderBoard('startBoard',5));   // swap in the global board when it answers
 if(location.search.indexOf('debug')>=0){
   window.__G={get S(){return S;},get P(){return P;},get PILES(){return PILES;},
               get DROPS(){return DROPS;},get nodeCount(){return nodeCount;},keys:keys,
