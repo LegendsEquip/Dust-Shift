@@ -153,6 +153,31 @@
   .rcard .lvl{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--orange);margin-bottom:9px}
   .rcard p{margin:0 0 14px;font-size:13.5px;color:var(--text-dim);line-height:1.45}
   .rcard .spec{margin-top:auto;border-top:1px solid var(--line);padding-top:9px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--lime)}
+  /* capital improvements */
+  #planScreen .brief{max-width:1020px;margin:0 auto}
+  #capBar{display:flex;align-items:baseline;gap:12px;border:1px solid var(--line);border-left:3px solid var(--orange);
+    border-radius:3px;background:rgba(255,106,19,.08);padding:11px 15px;margin:0 0 20px;flex-wrap:wrap}
+  #capBar b{font-family:'JetBrains Mono',monospace;font-size:26px;color:var(--orange);font-weight:700}
+  #capBar span{font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:11.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--steel)}
+  #capBar i{font-style:normal;font-size:13px;color:var(--text-dim);margin-left:auto}
+  .tree{display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:16px;margin:0 0 24px}
+  .branch h3{font-family:'Saira Condensed',sans-serif;font-weight:900;font-size:19px;margin:0 0 3px;color:var(--text)}
+  .branch p.bl{font-size:12.5px;color:var(--text-dim);margin:0 0 11px;line-height:1.4;min-height:52px}
+  .node{width:100%;text-align:left;display:block;background:linear-gradient(180deg,#1B232C,#131920);
+    border:1px solid var(--line);border-left:3px solid var(--steel-dim);border-radius:3px;
+    padding:11px 13px;margin-bottom:9px;color:var(--text);font:inherit;transition:border-color .12s,transform .1s}
+  .node h4{font-family:'Saira Condensed',sans-serif;font-weight:900;font-size:16px;margin:0 0 3px;
+    display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+  .node .price{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--orange);font-weight:400}
+  .node p{margin:0;font-size:12.5px;color:var(--text-dim);line-height:1.42}
+  .node.buy{cursor:pointer}
+  .node.buy:hover{border-left-color:var(--orange);border-color:var(--steel);transform:translateX(2px)}
+  .node.buy:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+  .node.owned{border-left-color:var(--lime);background:linear-gradient(180deg,#18241c,#121a14)}
+  .node.owned .price{color:var(--lime)}
+  .node.locked,.node.short{opacity:.5}
+  .node.locked .price,.node.short .price{color:var(--steel-dim)}
   /* leaderboard */
   .board{border:1px solid var(--line);border-radius:3px;background:rgba(10,14,19,.5);padding:12px 14px;margin:0 0 22px}
   .board h3{font-family:'Saira Condensed',sans-serif;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;
@@ -285,7 +310,10 @@
       </ul></div>
     </div>
     <div class="board" id="startBoard"></div>
-    <button class="go" id="startBtn">Clock in</button>
+    <div class="btnrow">
+      <button class="go" id="startBtn">Clock in</button>
+      <button class="go ghost" id="planLink">Capital improvements</button>
+    </div>
     <p class="foot">A Legends Equipment production. Every upgrade in here is a real thing we sell: hose runs, additional drops, larger separators and turbine packages, and the tool kits that go on the end of the hose.</p>
   </div></div>
 </div>
@@ -299,6 +327,17 @@
     </div>
     <div class="rgrid" id="rewardGrid"></div>
   </div>
+</div>
+
+<div class="screen" id="planScreen">
+  <div class="wrap"><div class="brief">
+    <div class="brand"><div class="mark">L</div><b>Legends Equipment &middot; Capital Improvements</b></div>
+    <h1>Plan the <em>next shift</em></h1>
+    <p class="tag">What you recovered got approved as capital. Spend it on the plant and it stays improved for every shift after this one.</p>
+    <div id="capBar"></div>
+    <div id="treeGrid" class="tree"></div>
+    <button class="go" id="planGoBtn">Clock in</button>
+  </div></div>
 </div>
 
 <div class="screen" id="pauseScreen">
@@ -322,7 +361,10 @@
     <div id="endStat"></div>
     <div id="nameEntry"></div>
     <div class="board" id="endBoard"></div>
-    <button class="go" id="againBtn">Run it again</button>
+    <div class="btnrow">
+      <button class="go" id="planBtn">Plan the next shift</button>
+      <button class="go ghost" id="againBtn">Straight back in</button>
+    </div>
     <p class="foot">Housekeeping is a system, not a chore. Legends Equipment designs and builds central vacuum housekeeping systems for large industrial plants &mdash; properly sized tubing, drops where the crew actually works, and the horsepower to carry it all the way back to the separator.</p>
   </div></div>
 </div>
@@ -346,6 +388,7 @@ function freshState(){
     hoseLen:25, suction:1.15, speed:7.2, reach:2.0, dozer:0, fiber:0, diver:0, dha:0, bore:0, energy:0, hound:0,
     norris:0, norrisT:0, norrisCd:0, fiberT:0, fiberCd:0,
     series:0, stun:0, forkTimer:rnd(72,96), forkRuns:0, cartTimer:rnd(48,80),
+    cdMul:1, dangerMul:1, growMul:1, bots:0, botSpeed:4.4, botRate:.75, botEmpty:1, botSmart:false,
     prog:0, progNeed:7,
     dropCount:3, perks:{}, spillTimer:16, pileTimer:6, spillsCleared:0,
     connected:-1, taut:0, needLen:0, vacuuming:false, shake:0, escT:0,
@@ -983,6 +1026,28 @@ const LIFT={g:null,forks:null,crate:null,beaconMat:null,state:'idle',t:0,u:0,rou
   LIFT.g=g; scene.add(g);
 })();
 
+/* robot vacuums — they work the floor and dock at the drops to empty */
+const BOTS=[];
+(function buildBots(){
+  for(let n=0;n<2;n++){
+    const g=new T.Group(); g.visible=false;
+    const shell=new T.MeshStandardMaterial({color:0x2d3238,roughness:.5,metalness:.35});
+    const deck =new T.MeshStandardMaterial({color:0xff6a13,roughness:.55,metalness:.2});
+    const body=cyl(g,0,.26,0,.62,.68,.42,shell,20);
+    const top =cyl(g,0,.5,0,.5,.6,.1,deck,20);
+    box(g,0,.56,.3,.42,.12,.22,shell);                 // sensor block
+    const eye=new T.MeshStandardMaterial({color:0x123018,emissive:0x55ee66,emissiveIntensity:1.6,roughness:.4});
+    const lamp=cyl(g,0,.62,0,.1,.1,.09,eye,10);
+    box(g,0,.12,.56,.5,.16,.12,shell);                 // intake mouth
+    for(let e=-1;e<=1;e+=2){
+      const w=cyl(g,e*.5,.13,-.12,.13,.13,.08,darkMat,10); w.rotation.z=Math.PI/2;
+    }
+    g.traverse(o=>{ if(o.isMesh){o.castShadow=true;o.receiveShadow=true;} });
+    scene.add(g);
+    BOTS.push({g:g,lamp:eye,x:0,z:0,dir:0,load:0,state:'seek',target:null,dock:0,wait:0});
+  }
+})();
+
 /* the plant manager's golf cart */
 const CART={g:null,x:0,z:0,dir:0,state:'idle',t:0,door:0,legs:0,tx:0,tz:0,dustT:0,trashT:0};
 (function buildCart(){
@@ -1510,7 +1575,7 @@ function cutHose(){
   tubeThrough(NODES.map(n=>n.p.clone()));   // the dead hose stays on the floor a moment
   CUT={t:0};
   S.connected=-1; S.taut=0; S.needLen=0;
-  if(S.norrisT>0){ S.norrisT=0; S.norrisCd=NORRIS_CD; }
+  if(S.norrisT>0){ S.norrisT=0; S.norrisCd=NORRIS_CD*S.cdMul; }
   norris.visible=false; wand.visible=false; coil.visible=false;
   humSet(0);
   toast('Hose crushed &mdash; get a new one from a drop');
@@ -1571,6 +1636,67 @@ function updateLift(dt){
 
   if(LIFT.state==='in'||LIFT.state==='out'){
     vehicleWake(dt,LIFT.g.position.x,LIFT.g.position.z,LIFT,.55,.45,.85,1.55,1.8,'Hit by the lift truck');
+  }
+}
+
+/* ---------- robot vacuums ---------- */
+function updateBots(dt){
+  for(let i=0;i<BOTS.length;i++){
+    const b=BOTS[i];
+    if(i>=S.bots){ if(b.g.visible) b.g.visible=false; continue; }
+    if(!b.g.visible){                                   // roll out from a drop
+      const d=DROPS[i%DROPS.length];
+      b.x=d.x; b.z=d.z; b.load=0; b.state='seek'; b.g.visible=true;
+    }
+    let tx,tz;
+    if(b.state==='dock'){
+      const d=DROPS[b.dock%DROPS.length]; tx=d.x; tz=d.z;
+      if(Math.hypot(tx-b.x,tz-b.z)<1.3){
+        b.wait-=dt*(S.botEmpty||1);
+        b.lamp.emissive.setHex(0x22aaff);
+        if(b.wait<=0){ b.load=0; b.state='seek'; b.lamp.emissive.setHex(0x55ee66); }
+        continue;
+      }
+    }else{
+      // nearest pile it can actually reach — elevated dust is not robot work
+      if(!b.target || b.target.amount<=0 || PILES.indexOf(b.target)<0){
+        let best=null,bd=1e9;
+        for(let k=0;k<PILES.length;k++){
+          const p=PILES[k];
+          if(p.kind==='high'||p.kind==='rafter'||p.kind==='raised') continue;
+          let d2=Math.hypot(p.x-b.x,p.z-b.z);
+          if(S.botSmart) d2-=p.amount*6;                // fleet control: go for the heavy ones
+          if(d2<bd){ bd=d2; best=p; }
+        }
+        b.target=best;
+      }
+      if(!b.target){ b.g.visible=true; continue; }
+      tx=b.target.x; tz=b.target.z;
+      if(Math.hypot(tx-b.x,tz-b.z)<1.0){
+        const take=Math.min(b.target.amount, S.botRate*dt);
+        b.target.amount-=take; b.load+=take;
+        S.cleaned+=take; S.prog+=take;
+        S.danger=Math.max(0,S.danger-take*1.05);
+        if(Math.random()<0.5) emitParticle(b.target.x,.3,b.target.z);
+        const bs=b.target.kind==='big'?1.35:1;
+        b.target.g.scale.setScalar(bs*(0.24+clamp(b.target.amount/b.target.max,0,1)*0.76));
+        if(b.target.amount<=0.001){
+          const sp=b.target.spill;
+          removePile(b.target); b.target=null;
+          if(sp && !PILES.some(q=>q.spill===sp)){ S.spillsCleared++; S.prog+=Math.max(2.2,S.progNeed*0.35); }
+        }
+        if(b.load>=2.2){ b.state='dock'; b.wait=1.6; b.dock=i; b.target=null; }
+        continue;
+      }
+    }
+    const dx=tx-b.x, dz=tz-b.z, dist=Math.hypot(dx,dz)||1;
+    const want=Math.atan2(dx,dz);
+    let diff=((want-b.dir+Math.PI*3)%(Math.PI*2))-Math.PI;
+    b.dir+=diff*Math.min(1,dt*4);
+    const sp=S.botSpeed*dt;
+    b.x+=Math.sin(b.dir)*sp; b.z+=Math.cos(b.dir)*sp;
+    tmpC.set(b.x,0,b.z); collideCircle(tmpC,.6); b.x=tmpC.x; b.z=tmpC.z;
+    b.g.position.set(b.x,0,b.z); b.g.rotation.y=b.dir;
   }
 }
 
@@ -1900,6 +2026,11 @@ function drawMap(){
     mg.fillStyle='#E9E7E0';
     mg.fillRect(mx(CART.x)-3,mz(CART.z)-3,6,6);
   }
+  for(let i=0;i<BOTS.length;i++){
+    if(!BOTS[i].g.visible) continue;
+    mg.fillStyle='#FF6A13';
+    mg.beginPath(); mg.arc(mx(BOTS[i].x),mz(BOTS[i].z),2.6,0,7); mg.fill();
+  }
   mg.fillStyle='#fff'; mg.beginPath(); mg.arc(mx(P.x),mz(P.z),3.2,0,7); mg.fill();
   mg.strokeStyle='rgba(255,255,255,.55)'; mg.lineWidth=1.5;
   mg.beginPath(); mg.moveTo(mx(P.x),mz(P.z));
@@ -1992,8 +2123,8 @@ function disconnect(retract){
     wand.visible=false; coil.visible=true;
   }
   S.connected=-1; S.taut=0; S.needLen=0;
-  if(S.norrisT>0){ S.norrisT=0; S.norrisCd=NORRIS_CD; }   // unplugging kills the burst
-  if(S.fiberT>0){ S.fiberT=0; S.fiberCd=NORRIS_CD; }
+  if(S.norrisT>0){ S.norrisT=0; S.norrisCd=NORRIS_CD*S.cdMul; }   // unplugging kills the burst
+  if(S.fiberT>0){ S.fiberT=0; S.fiberCd=NORRIS_CD*S.cdMul; }
   norris.visible=false; pole.visible=false;
   humSet(0);
   blip(140,.14,'square',.22);
@@ -2007,7 +2138,9 @@ function startGame(){
   PILES.slice().forEach(removePile);
   DROPS.forEach(d=>scene.remove(d.group)); DROPS.length=0;
   S=freshState();
+  metaApply();                       // permanent plant improvements carry in
   refreshDrops(S.dropCount);
+  for(let i=0;i<BOTS.length;i++){ BOTS[i].g.visible=false; BOTS[i].target=null; BOTS[i].load=0; BOTS[i].state='seek'; }
   P.x=0; P.z=15; P.dir=Math.PI; P.bob=0;
   // undo everything the evacuation left behind
   player.visible=true; player.position.set(P.x,0,P.z); player.rotation.y=P.dir;
@@ -2046,10 +2179,75 @@ function startGame(){
 }
 el('startBtn').addEventListener('click',startGame);
 el('againBtn').addEventListener('click',startGame);
+el('planBtn').addEventListener('click',openPlan);
+el('planGoBtn').addEventListener('click',startGame);
+el('planLink').addEventListener('click',openPlan);
 el('pauseBtn').addEventListener('click',()=>pauseGame(false));
 el('quitBtn').addEventListener('click',()=>pauseGame(true));
 el('resumeBtn').addEventListener('click',resumeGame);
 el('endBtn').addEventListener('click',quitShift);
+
+/* ===================== CAPITAL IMPROVEMENTS =====================
+   What you recover each shift is approved as capital, and capital buys
+   permanent plant improvements that carry into every later shift. */
+const META_KEY='dustshift.meta.v1';
+let META_MEM={capital:0,nodes:{},runs:0};
+function metaLoad(){
+  try{
+    const r=localStorage.getItem(META_KEY); const m=r? JSON.parse(r):null;
+    if(!m||typeof m!=='object') return {capital:0,nodes:{},runs:0};
+    return {capital:Math.max(0,+m.capital||0), nodes:(m.nodes&&typeof m.nodes==='object')?m.nodes:{}, runs:+m.runs||0};
+  }catch(e){ return {capital:META_MEM.capital,nodes:META_MEM.nodes,runs:META_MEM.runs}; }
+}
+function metaSave(m){ META_MEM=m; try{ localStorage.setItem(META_KEY,JSON.stringify(m)); }catch(e){} }
+
+const TREE=[
+  {id:'eng', name:'Legends Engineering', blurb:'Put our engineers on your plant and get tools drawn for your floor, not a catalogue.',
+   nodes:[
+     {id:'eng1',name:'Shop Drawings',cost:400,desc:'Tooling engineered around your equipment. Every tool recovers 15% faster.'},
+     {id:'eng2',name:'Custom Wand Set',cost:900,desc:'The Pile Diver is fitted before the whistle — two tool heads from the start of every shift.'},
+     {id:'eng3',name:'Turnkey Package',cost:1600,desc:'Purpose-built handling. Suck Norris and FiberLight recharge 30% faster.'}
+   ]},
+  {id:'dha', name:'Dust Hazard Specialist', blurb:'A specialist on retainer who walks the plant and writes down what he finds.',
+   nodes:[
+     {id:'dha1',name:'Walkthrough Audit',cost:400,desc:'Hazard areas identified and posted. The dust level climbs 18% slower.'},
+     {id:'dha2',name:'Written DHA',cost:900,desc:'The NFPA 652 study on file and acted on. Another 18% slower.'},
+     {id:'dha3',name:'Housekeeping Program',cost:1600,desc:'Written procedures and a schedule. Piles build 50% slower and spills arrive smaller.'}
+   ]},
+  {id:'bot', name:'Robot Vacuums', blurb:'Autonomous units that work the floor between rounds and dock at your drops to empty.',
+   nodes:[
+     {id:'bot1',name:'One Unit',cost:500,desc:'A robot works the floor on its own and docks at a drop when it is full.'},
+     {id:'bot2',name:'Second Unit',cost:1000,desc:'A second robot on shift, and both move 30% faster.'},
+     {id:'bot3',name:'Fleet Control',cost:1800,desc:'The fleet goes for the heaviest piles first and empties twice as fast.'}
+   ]}
+];
+function nodeState(meta,branch,idx){
+  const n=branch.nodes[idx];
+  if(meta.nodes[n.id]) return 'owned';
+  if(idx>0 && !meta.nodes[branch.nodes[idx-1].id]) return 'locked';
+  return meta.capital>=n.cost? 'buy':'short';
+}
+function metaApply(){
+  const m=metaLoad(), has=id=>!!m.nodes[id];
+  if(has('eng1')) S.suction*=1.15;
+  if(has('eng2')){ S.diver=1; S.perks.diver=1; }
+  S.cdMul = has('eng3')? 0.7 : 1;
+  let dm=1; if(has('dha1')) dm*=0.82; if(has('dha2')) dm*=0.82;
+  S.dangerMul=dm;
+  S.growMul = has('dha3')? 0.5 : 1;
+  S.bots = has('bot2')? 2 : (has('bot1')? 1 : 0);
+  S.botSpeed = 4.4*(has('bot2')?1.3:1);
+  S.botRate = 0.75*(has('bot3')?1:1);
+  S.botEmpty = has('bot3')? 2 : 1;
+  S.botSmart = has('bot3');
+}
+function awardCapital(win){
+  const m=metaLoad();
+  const earned=Math.round(Math.round(S.cleaned*38)/8) + (win?600:0);
+  m.capital+=earned; m.runs++;
+  metaSave(m);
+  return earned;
+}
 
 /* ===================== LEADERBOARD =====================
    Top ten by pounds recovered, kept in this browser. On a booth machine
@@ -2144,6 +2342,60 @@ function offerBoardEntry(score,time,survived){
   setTimeout(()=>inp.focus(),60);
 }
 
+/* ---------- the planning screen ---------- */
+function renderPlan(){
+  const m=metaLoad();
+  const owned=Object.keys(m.nodes).length;
+  const cap=el('capBar');
+  cap.innerHTML='';
+  const b=document.createElement('b'); b.textContent='$'+m.capital.toLocaleString();
+  const s=document.createElement('span'); s.textContent='capital available';
+  const i=document.createElement('i');
+  i.textContent=owned? owned+' improvement'+(owned===1?'':'s')+' installed · '+m.runs+' shift'+(m.runs===1?'':'s')+' worked'
+                     : 'Nothing installed yet — this is shift '+(m.runs||1);
+  cap.appendChild(b); cap.appendChild(s); cap.appendChild(i);
+
+  const grid=el('treeGrid'); grid.innerHTML='';
+  TREE.forEach(branch=>{
+    const col=document.createElement('div'); col.className='branch';
+    const h=document.createElement('h3'); h.textContent=branch.name;
+    const bl=document.createElement('p'); bl.className='bl'; bl.textContent=branch.blurb;
+    col.appendChild(h); col.appendChild(bl);
+    branch.nodes.forEach((n,idx)=>{
+      const st=nodeState(m,branch,idx);
+      const card=document.createElement(st==='buy'?'button':'div');
+      card.className='node '+st;
+      if(st==='buy') card.type='button';
+      const t=document.createElement('h4');
+      t.appendChild(document.createTextNode(n.name));
+      const pr=document.createElement('span'); pr.className='price';
+      pr.textContent = st==='owned'? 'INSTALLED'
+                     : (st==='locked'? 'needs '+branch.nodes[idx-1].name : '$'+n.cost.toLocaleString());
+      t.appendChild(pr);
+      const d=document.createElement('p'); d.textContent=n.desc;
+      card.appendChild(t); card.appendChild(d);
+      if(st==='buy'){
+        card.addEventListener('click',()=>{
+          const cur=metaLoad();
+          if(cur.capital<n.cost || cur.nodes[n.id]) return;
+          cur.capital-=n.cost; cur.nodes[n.id]=true;
+          metaSave(cur);
+          blip(520,.1,'square',.2); setTimeout(()=>blip(780,.22,'square',.18),90);
+          renderPlan();
+        });
+      }
+      col.appendChild(card);
+    });
+    grid.appendChild(col);
+  });
+}
+function openPlan(){
+  renderPlan();
+  el('endScreen').classList.remove('show');
+  el('startScreen').classList.remove('show');
+  el('planScreen').classList.add('show');
+}
+
 /* ---------- pause / quit ---------- */
 function musicSuspend(off){
   if(!AC) return;
@@ -2201,7 +2453,8 @@ function endGame(win){
     '<div><span>'+mins+':'+(secs<10?'0':'')+secs+'</span><em>Time on the floor</em></div>'+
     '<div><span>'+Math.round(S.cleaned*38)+'</span><em>Lb recovered</em></div>'+
     '<div><span>'+S.spillsCleared+'</span><em>Spills cleared</em></div>'+
-    '<div><span>'+Object.values(S.perks).reduce((a,b)=>a+b,0)+'</span><em>Upgrades installed</em></div>';
+    '<div><span>'+Object.values(S.perks).reduce((a,b)=>a+b,0)+'</span><em>Upgrades installed</em></div>'+
+    '<div><span>$'+awardCapital(win).toLocaleString()+'</span><em>Capital approved</em></div>';
   offerBoardEntry(Math.round(S.cleaned*38), S.t, win);
   el('endScreen').classList.add('show');
 }
@@ -2276,6 +2529,7 @@ function step(dt){
 
   updateLift(dt);
   updateCart(dt);
+  if(S.bots>0) updateBots(dt);
 
   /* ---------- stunned: he's on the floor, and the dust keeps settling ---------- */
   const stunned=S.stun>0;
@@ -2368,7 +2622,7 @@ function step(dt){
   // Suck Norris burst timing
   if(S.norrisT>0){
     S.norrisT-=dt;
-    if(S.norrisT<=0){ S.norrisT=0; S.norrisCd=NORRIS_CD; humSet(S.vacuuming?1:.28); }
+    if(S.norrisT<=0){ S.norrisT=0; S.norrisCd=NORRIS_CD*S.cdMul; humSet(S.vacuuming?1:.28); }
   }else if(S.norrisCd>0){ S.norrisCd=Math.max(0,S.norrisCd-dt); }
   const norrisOn = S.norrisT>0 && S.connected>=0;
   norris.visible=norrisOn;
@@ -2376,7 +2630,7 @@ function step(dt){
   // FiberLight timing — same recharge as the Norris, tracked on its own
   if(S.fiberT>0){
     S.fiberT-=dt;
-    if(S.fiberT<=0){ S.fiberT=0; S.fiberCd=NORRIS_CD; }
+    if(S.fiberT<=0){ S.fiberT=0; S.fiberCd=NORRIS_CD*S.cdMul; }
   }else if(S.fiberCd>0){ S.fiberCd=Math.max(0,S.fiberCd-dt); }
   const fiberOn = S.fiberT>0 && S.connected>=0;
   pole.visible=fiberOn;
@@ -2538,11 +2792,11 @@ function step(dt){
   for(let i=0;i<PILES.length;i++){
     const p=PILES[i];
     // only floor dust keeps accumulating; elevated deposits sit where they are
-    if((p.kind==='floor'||p.kind==='big') && p.amount<p.max*1.5) p.amount+=dt*0.013;
+    if((p.kind==='floor'||p.kind==='big') && p.amount<p.max*1.5) p.amount+=dt*0.013*S.growMul;
     total+=p.amount;
     if(p.ring) p.ring.material.opacity=.35+Math.sin(S.t*4+i)*.22;
   }
-  const dhaCut=Math.pow(0.78,S.dha);
+  const dhaCut=Math.pow(0.78,S.dha)*S.dangerMul;
   S.danger+=dt*total*0.055*dhaCut;
   S.danger-=dt*0.34;
   S.danger=clamp(S.danger,0,100);
@@ -2587,7 +2841,7 @@ function step(dt){
   mapAcc+=dt; if(mapAcc>0.1){ mapAcc=0; drawMap(); }
 
   /* ---------- win / lose ---------- */
-  if(S.t>=SHIFT){ S.running=false; endGame(true); }
+  if(S.t>=SHIFT && !S.over){ S.running=false; endGame(true); }
   if(S.danger>=100 && !S.escaping){ S.running=false; beginEscape(); }
 }
 
