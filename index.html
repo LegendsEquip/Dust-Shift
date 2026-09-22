@@ -2168,6 +2168,8 @@ function startGame(){
   el('startScreen').classList.remove('show');
   el('endScreen').classList.remove('show');
   el('pauseScreen').classList.remove('show');
+  el('planScreen').classList.remove('show');
+  rewardScreen.classList.remove('show');   // nothing may be left covering the floor
   hud.classList.add('live');
   el('vig').classList.remove('alarm');
   syncHUD();
@@ -2479,6 +2481,7 @@ function resumeGame(){
 function quitShift(){
   S.paused=false; S.running=false; S.escaping=false; S.over=true;
   el('pauseScreen').classList.remove('show');
+  el('planScreen').classList.remove('show');
   sirenStop(); humSet(0); musicStop();
   hud.classList.remove('live');
   el('vig').classList.remove('alarm');
