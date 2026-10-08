@@ -277,7 +277,7 @@
 
   <div id="mapPlate" class="plate">
     <span class="eyebrow">Plant floor</span>
-    <canvas id="map" width="188" height="130"></canvas>
+    <canvas id="map" width="196" height="104"></canvas>
   </div>
 
   <div id="toasts"></div>
@@ -299,7 +299,8 @@
       <div><h3>The job</h3><ul>
         <li>Suction only runs while you're <b>plugged into a drop</b>.</li>
         <li>Walk too far and the hose goes <b>taut</b> &mdash; it won't stretch.</li>
-        <li>Every pile left on the floor drives the <b>dust level</b> up.</li>
+        <li>Every pile left on the floor drives the <b>dust level</b> up. <b>Red dust</b> pays best.</li>
+        <li><b>Blue water</b> plugs the line unless you've fitted a <b>Liquid Separator</b>.</li>
         <li><b>Lift trucks</b> and the manager's <b>golf cart</b> will crush your hose and flatten you. Stay out of the lanes.</li>
         <li>At 100% the alarm sounds. Get out before it goes.</li>
       </ul></div>
@@ -374,7 +375,7 @@
 (function(){
 "use strict";
 const T = THREE;
-const HX = 32, HZ = 22, WH = 8;
+const HX = 42, HZ = 22, WH = 8;   // 30% wider plant floor
 const SHIFT = 600, SEG = 0.62, BAG_T = 480;
 const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
 const rnd=(a,b)=>a+Math.random()*(b-a);
@@ -387,10 +388,10 @@ function freshState(){
     running:false, over:false, escaping:false, paused:false, t:0, danger:0, cleaned:0,
     hoseLen:25, suction:1.15, speed:7.2, reach:2.0, dozer:0, fiber:0, diver:0, dha:0, bore:0, energy:0, hound:0,
     norris:0, norrisT:0, norrisCd:0, fiberT:0, fiberCd:0,
-    series:0, stun:0, forkTimer:rnd(72,96), forkRuns:0, cartTimer:rnd(48,80),
+    series:0, liquid:0, stun:0, forkTimer:rnd(72,96), forkRuns:0, cartTimer:rnd(48,80),
     cdMul:1, dangerMul:1, growMul:1, bots:0, botSpeed:4.4, botRate:.75, botEmpty:1, botSmart:false,
     prog:0, progNeed:7,
-    dropCount:3, perks:{}, spillTimer:16, pileTimer:6, spillsCleared:0,
+    dropCount:6, perks:{}, spillTimer:16, pileTimer:6, spillsCleared:0,
     connected:-1, taut:0, needLen:0, vacuuming:false, shake:0, escT:0,
     bagWarned:false, bagDropped:false, bagSpilled:false
   };
@@ -670,7 +671,7 @@ const stripeMat=new T.MeshStandardMaterial({color:0xf2b01e,roughness:.9});
 function stripe(x,z,w,d){ const m=new T.Mesh(new T.PlaneGeometry(w,d),stripeMat);
   m.rotation.x=-Math.PI/2; m.position.set(x,.013,z); scene.add(m); }
 stripe(0,-.9,HX*2-6,.3); stripe(0,.9,HX*2-6,.3);
-stripe(-13,0,.3,HZ*2-5); stripe(13,0,.3,HZ*2-5);
+stripe(-17,0,.3,HZ*2-5); stripe(17,0,.3,HZ*2-5);
 
 const wallMat=new T.MeshStandardMaterial({color:0x474d55,roughness:.8,metalness:.25});
 const trimMat=new T.MeshStandardMaterial({color:0x2b3038,roughness:.68,metalness:.42});
@@ -700,6 +701,7 @@ wall(-HX-.4,0,.8,HZ*2+1.6,WH,true);    // side walls: fade only the half in fron
 wall(HX+.4,0,.8,HZ*2+1.6,WH,true);
 
 /* trusses + high-bay fixtures */
+const BAY_X=[-32,-16,0,16,32];
 const steelMat=new T.MeshStandardMaterial({color:0x596068,roughness:.55,metalness:.65});
 const bayMat=new T.MeshStandardMaterial({color:0xfff4dd,emissive:0xfff0d4,emissiveIntensity:1.5,roughness:.4});
 for(let i=-3;i<=3;i++){
@@ -707,15 +709,18 @@ for(let i=-3;i<=3;i++){
   const rowSteel=steelMat.clone(), rowBay=bayMat.clone(), rowShade=trimMat.clone();
   const b=new T.Mesh(new T.BoxGeometry(HX*2,.5,.55),rowSteel); b.position.set(0,WH-.7,z); scene.add(b);
   const b2=new T.Mesh(new T.BoxGeometry(HX*2,.2,.2),rowSteel); b2.position.set(0,WH-1.5,z); scene.add(b2);
-  for(let k=-2;k<=2;k++){
-    const w=new T.Mesh(new T.BoxGeometry(.16,1,.16),rowSteel); w.position.set(k*11+(i%2?2:-2),WH-1.15,z); scene.add(w);
+  for(let k=-3;k<=3;k++){
+    const w=new T.Mesh(new T.BoxGeometry(.16,1,.16),rowSteel); w.position.set(k*13+(i%2?2:-2),WH-1.15,z); scene.add(w);
   }
-  for(let k=-2;k<=2;k+=2){
+  // fixtures right across the width; only every other one carries a real light
+  BAY_X.forEach((bx,ix)=>{
     const f=new T.Mesh(new T.CylinderGeometry(.62,.82,.34,12),rowBay);
-    f.position.set(k*11,WH-1.9,z); scene.add(f);
-    const shade=new T.Mesh(new T.CylinderGeometry(.9,.62,.4,12),rowShade); shade.position.set(k*11,WH-1.6,z); scene.add(shade);
-    const pl=new T.PointLight(0xffe9c4,.5,26,2); pl.position.set(k*11,WH-2.3,z); scene.add(pl);
-  }
+    f.position.set(bx,WH-1.9,z); scene.add(f);
+    const shade=new T.Mesh(new T.CylinderGeometry(.9,.62,.4,12),rowShade); shade.position.set(bx,WH-1.6,z); scene.add(shade);
+    if(ix%2===0){
+      const pl=new T.PointLight(0xffe9c4,.55,30,2); pl.position.set(bx,WH-2.3,z); scene.add(pl);
+    }
+  });
   addFader(z,[rowSteel,rowBay,rowShade]);
 }
 
@@ -815,14 +820,16 @@ function workbench(x,z,rot){
   scene.add(g); obst(x,z,rot?1.7:4.6,rot?4.6:1.7, 1.05);
 }
 
-machineCNC(-19,-12,0); machineCNC(-19,9,0); machineCNC(17,-13,0);
-conveyor(-3,-15,14,0); conveyor(4,13,16,0);
-tanks(22,6); tanks(-27,-3);
-press(9,-6,0); press(-8,4,0);
-palletStack(25,-17,2); palletStack(-25,17,2); palletStack(20,17,1); palletStack(-13,-19,2);
-barrels(0,-6); barrels(-2,18); barrels(28,-6);
-silo(26,-11); silo(-24,-18);   // kept clear of the center aisle the lift truck runs
-workbench(6,3,0); workbench(-14,-4,Math.PI/2); workbench(12,10,0);   // clear of the x=17 lane
+/* Layout spread across the wider floor. Every piece is kept clear of the four
+   truck lanes: z=0 across the middle, and x=10, x=-37, x=22 running north-south. */
+machineCNC(-25,-12,0); machineCNC(-25,9,0); machineCNC(22,-13,0); machineCNC(-38,5,0);
+conveyor(-4,-15,14,0); conveyor(5,13,16,0); conveyor(35,14,12,0);
+tanks(29,6); tanks(-35,-3);
+press(12,-6,0); press(-10,4,0); press(38,-16,0);
+palletStack(33,-17,2); palletStack(-33,17,2); palletStack(26,17,1); palletStack(-17,-19,2);
+barrels(0,-6); barrels(-3,18); barrels(36,-6); barrels(-40,12);
+silo(34,-11); silo(-31,-18);
+workbench(8,3,0); workbench(-18,-4,Math.PI/2); workbench(16,10,0); workbench(-38,16,0);
 
 /* A one-ton bulk bag standing in the center aisle. It stays upright until the
    eight-minute mark, then goes over. The tilt group's origin sits at the bag's
@@ -932,7 +939,7 @@ BAG.fallX=BAG.x-BAG.piv-1.9;    // where the body center lands once it's over
    An overhead door on the east wall, a staged pallet load at the far end of the
    center aisle, and the truck that runs between them. Everything lives on z=0,
    which is why that lane is kept clear of equipment. */
-const LANE_Z=0, LIFT_STOP=-1.1;
+const LANE_Z=0, LIFT_STOP=-2.1;
 
 const DOORS=[];
 const shutterMat=new T.MeshStandardMaterial({color:0x9aa1a8,roughness:.6,metalness:.5});
@@ -962,19 +969,19 @@ function setDoor(i,open){
 const ROUTES=[
   {axis:'x', lane:LANE_Z, from:HX+2.5,  stop:LIFT_STOP, rot:-Math.PI/2, stage:true,
    door:makeDoor(HX-.25,LANE_Z,-Math.PI/2)},
-  {axis:'z', lane:8,      from:-HZ-2.5, stop:-9.5,      rot:0,
-   door:makeDoor(8,-HZ+.25,0)},
-  {axis:'z', lane:-28.5,  from:-HZ-2.5, stop:-5.5,      rot:0,
-   door:makeDoor(-28.5,-HZ+.25,0)},
-  {axis:'z', lane:17,     from:HZ+2.5,  stop:-9.5,      rot:Math.PI,
-   door:makeDoor(17,HZ-.25,Math.PI)}
+  {axis:'z', lane:10,     from:-HZ-2.5, stop:-9.5,      rot:0,
+   door:makeDoor(10,-HZ+.25,0)},
+  {axis:'z', lane:-37,    from:-HZ-2.5, stop:-5.5,      rot:0,
+   door:makeDoor(-37,-HZ+.25,0)},
+  {axis:'z', lane:22,     from:HZ+2.5,  stop:-9.5,      rot:Math.PI,
+   door:makeDoor(22,HZ-.25,Math.PI)}
 ];
 for(let i=0;i<DOORS.length;i++) setDoor(i,0);
 
 /* staged pallet load the truck comes in for */
 const STAGE={crate:null};
 (function buildStage(){
-  const g=new T.Group(); g.position.set(-4,0,LANE_Z);
+  const g=new T.Group(); g.position.set(-5,0,LANE_Z);
   box(g,0,.12,0,2.7,.22,2.3,woodMat);
   box(g,0,.75,0,2.4,1.05,2.0,crateMat);
   box(g,0,.75,1.02,2.42,.18,.06,darkMat);
@@ -982,7 +989,7 @@ const STAGE={crate:null};
   box(g,0,2.0,.97,2.3,.16,.05,darkMat);
   STAGE.crate=top;
   scene.add(g);
-  obst(-4,LANE_Z,2.9,2.5,2.4);
+  obst(-5,LANE_Z,2.9,2.5,2.4);
 })();
 
 /* the truck */
@@ -1083,20 +1090,20 @@ const CART={g:null,x:0,z:0,dir:0,state:'idle',t:0,door:0,legs:0,tx:0,tz:0,dustT:
    The first three go live at the start: one on the far wall, two on the near
    wall, so the bottom of the floor is always reachable. */
 const DROP_SLOTS=[
-  {x:-10,z:-HZ+.4,n:[0,1]},   // far wall, left
-  {x:10, z:HZ-.4, n:[0,-1]},  // near wall, right
-  {x:-12,z:HZ-.4, n:[0,-1]},  // near wall, left
-  {x:14, z:-HZ+.4,n:[0,1]},   // far wall, right
+  {x:-13,z:-HZ+.4,n:[0,1]},   // far wall, left        — the six that start live
+  {x:13, z:HZ-.4, n:[0,-1]},  // near wall, right
+  {x:-16,z:HZ-.4, n:[0,-1]},  // near wall, left
+  {x:18, z:-HZ+.4,n:[0,1]},   // far wall, right
   {x:-HX+.4,z:-4,n:[1,0]},    // west
   {x:HX-.4, z:4,  n:[-1,0]},  // east
-  {x:26, z:HZ-.4, n:[0,-1]},  // near wall, far right
-  {x:-27,z:-HZ+.4,n:[0,1]},   // far wall, far left
+  {x:34, z:HZ-.4, n:[0,-1]},  // near wall, far right  — unlocked by the card
+  {x:-30,z:-HZ+.4,n:[0,1]},   // far wall, far left
   {x:0,  z:HZ-.4, n:[0,-1]},  // near wall, center
   {x:0,  z:-HZ+.4,n:[0,1]},   // far wall, center
   {x:-HX+.4,z:15,n:[1,0]},    // west, near corner
   {x:HX-.4,z:-15,n:[-1,0]},   // east, far corner
-  {x:-28,z:HZ-.4,n:[0,-1]},   // near wall, far left
-  {x:27, z:-HZ+.4,n:[0,1]}    // far wall, far right
+  {x:-36,z:HZ-.4,n:[0,-1]},   // near wall, far left
+  {x:35, z:-HZ+.4,n:[0,1]}    // far wall, far right
 ];
 const DROPS=[];
 function buildDrop(slot){
@@ -1142,14 +1149,14 @@ function refreshDrops(count){
 function showReels(){ for(let i=0;i<DROPS.length;i++) DROPS[i].reel.visible=true; }
 
 /* exit door on the south wall */
-const exitG=new T.Group(); exitG.position.set(30,0,HZ+.1);
+const exitG=new T.Group(); exitG.position.set(39,0,HZ+.1);
 const doorMat=new T.MeshStandardMaterial({color:0x22282f,roughness:.7,metalness:.4});
 addFader(HZ+.1,[doorMat]);   // the lit EXIT sign above it stays solid as a beacon
 box(exitG,0,1.7,0,3.2,3.4,.3,doorMat);
 box(exitG,0,3.7,.1,3.4,.55,.12,new T.MeshStandardMaterial({color:0x1e3d24,emissive:0x3ddd5a,emissiveIntensity:1.2,roughness:.4}));
-const exitLight=new T.PointLight(0x55ff77,.7,10,2); exitLight.position.set(30,3.6,HZ-.7); scene.add(exitLight);
+const exitLight=new T.PointLight(0x55ff77,.7,10,2); exitLight.position.set(39,3.6,HZ-.7); scene.add(exitLight);
 scene.add(exitG);
-const EXIT={x:30,z:HZ-1.2};
+const EXIT={x:39,z:HZ-1.2};
 
 /* ===================== PLAYER ===================== */
 const vestMat=new T.MeshStandardMaterial({color:0xc9e265,roughness:.75});
@@ -1384,8 +1391,23 @@ function updateRetract(dt){
 }
 
 /* ===================== DUST ===================== */
-const dustMatFloor=new T.MeshStandardMaterial({color:0x3b342b,roughness:1});
-const dustMatBig  =new T.MeshStandardMaterial({color:0x2b251e,roughness:1});
+/* Different processes shed different material. Red is the rich stuff — rarer,
+   and worth more a pound when you recover it. */
+const DUST_TYPES=[
+  {id:'brown', col:0x6d5832, mult:1,   w:38, map:'rgba(170,140,86,.9)'},
+  {id:'black', col:0x232221, mult:1,   w:30, map:'rgba(132,132,136,.9)'},
+  {id:'green', col:0x426f2c, mult:1,   w:21, map:'rgba(118,186,92,.92)'},
+  {id:'red',   col:0xa32c21, mult:2.5, w:11, map:'rgba(236,62,46,.95)'}
+];
+const DUST_W=DUST_TYPES.reduce((a,b)=>a+b.w,0);
+DUST_TYPES.forEach(d=>{ d.mat=new T.MeshStandardMaterial({color:d.col,roughness:1}); });
+function pickDust(){
+  let r=Math.random()*DUST_W;
+  for(let i=0;i<DUST_TYPES.length;i++){ r-=DUST_TYPES[i].w; if(r<=0) return DUST_TYPES[i]; }
+  return DUST_TYPES[0];
+}
+const waterMat=new T.MeshStandardMaterial({color:0x2f74ad,roughness:.12,metalness:.35,
+  transparent:true,opacity:.86});
 const dustMatHigh =new T.MeshStandardMaterial({color:0x453d32,roughness:1});
 const PILES=[];
 let spillId=0;
@@ -1431,9 +1453,10 @@ function surfaceSpot(){
 }
 function makePile(x,z,amount,kind,spill,atY){
   const g=new T.Group(); g.position.set(x,0,z);
-  const mat = kind==='high'?dustMatHigh : (kind==='big'?dustMatBig:dustMatFloor);
+  const tint = kind==='water'? null : pickDust();
+  const mat = kind==='high'||kind==='rafter' ? dustMatHigh : (tint? tint.mat : waterMat);
   const blobs=[];
-  const n = kind==='big'?7:(kind==='trash'?2:4);
+  const n = kind==='water'?0 : (kind==='big'?7:(kind==='trash'?2:4));
   for(let i=0;i<n;i++){
     const geo=new T.IcosahedronGeometry(rnd(.3,.62),0);
     const pos=geo.attributes.position;
@@ -1444,6 +1467,14 @@ function makePile(x,z,amount,kind,spill,atY){
     const m=new T.Mesh(geo,mat);
     m.position.set(rnd(-.55,.55),rnd(.04,.2),rnd(-.55,.55));
     m.castShadow=true; m.receiveShadow=true; g.add(m); blobs.push(m);
+  }
+  if(kind==='water'){          // standing water — flat, wide, and it shines
+    for(let i=0;i<3;i++){
+      const d=new T.Mesh(new T.CylinderGeometry(rnd(.5,.95),rnd(.5,.95),.055,18),waterMat);
+      d.position.set(rnd(-.6,.6),.028,rnd(-.6,.6));
+      d.scale.set(1,1,rnd(.7,1.3));
+      d.receiveShadow=true; g.add(d); blobs.push(d);
+    }
   }
   if(kind==='rafter'){         // settled along the truss chord, years of it
     g.position.y=6.62;
@@ -1477,7 +1508,8 @@ function makePile(x,z,amount,kind,spill,atY){
     }
   }
   scene.add(g);
-  const pile={x,z,y,amount,max:amount,kind,spill:spill||0,g,blobs,base:g.scale.x};
+  const pile={x,z,y,amount,max:amount,kind,spill:spill||0,g,blobs,base:g.scale.x,
+              tint:tint, mult: kind==='water'? 2 : (tint? tint.mult : 1)};
   if(kind==='big') g.scale.setScalar(1.35);
   if(spill){
     const ring=new T.Mesh(new T.RingGeometry(1.0,1.25,24),
@@ -1506,6 +1538,10 @@ function spawnPile(){
   if(Math.random() < (S.diver>0? .26 : .10)){
     const s=surfaceSpot();
     if(s){ makePile(s.x,s.z,rnd(.8,1.3),'raised',0,s.y); return; }
+  }
+  if(Math.random() < .13){                    // washdown water, leaks, condensate
+    const s=freeSpot(2.4);
+    makePile(s.x,s.z,rnd(1.2,2.0),'water',0); return;
   }
   const s=freeSpot(2.2);
   const kind = Math.random()<.22 ? 'big' : 'floor';
@@ -1570,16 +1606,24 @@ function liftEnd(){
   // traffic picks up as the shift wears on
   S.forkTimer=rnd(120,165)*(1-0.62*clamp(S.t/SHIFT,0,1));
 }
-function cutHose(){
+function dropHose(msg,event){
   if(S.connected<0) return;
   tubeThrough(NODES.map(n=>n.p.clone()));   // the dead hose stays on the floor a moment
   CUT={t:0};
   S.connected=-1; S.taut=0; S.needLen=0;
   if(S.norrisT>0){ S.norrisT=0; S.norrisCd=NORRIS_CD*S.cdMul; }
-  norris.visible=false; wand.visible=false; coil.visible=false;
+  if(S.fiberT>0){ S.fiberT=0; S.fiberCd=NORRIS_CD*S.cdMul; }
+  norris.visible=false; pole.visible=false; wand.visible=false; coil.visible=false;
   humSet(0);
-  toast('Hose crushed &mdash; get a new one from a drop');
+  toast(msg);
+  if(event){ showEvent(event); setTimeout(hideEvent,6000); }
   noiseBurst(.4,.55,1100); blip(95,.4,'triangle',.3);
+}
+function cutHose(){ dropHose('Hose crushed &mdash; get a new one from a drop'); }
+function plugLine(){
+  dropHose('LINE PLUGGED &mdash; water went up the hose',
+           'Line plugged &mdash; reconnect at a drop to clear it');
+  noiseBurst(.9,.45,380);
 }
 /* shared: anything driving across the floor sheds dust, crushes hose, flattens people */
 function vehicleWake(dt,vx,vz,o,dustEvery,amtLo,amtHi,crushR,hitR,label){
@@ -1664,6 +1708,7 @@ function updateBots(dt){
         for(let k=0;k<PILES.length;k++){
           const p=PILES[k];
           if(p.kind==='high'||p.kind==='rafter'||p.kind==='raised') continue;
+          if(p.kind==='water' && !S.liquid) continue;   // robots plug too
           let d2=Math.hypot(p.x-b.x,p.z-b.z);
           if(S.botSmart) d2-=p.amount*6;                // fleet control: go for the heavy ones
           if(d2<bd){ bd=d2; best=p; }
@@ -1675,7 +1720,7 @@ function updateBots(dt){
       if(Math.hypot(tx-b.x,tz-b.z)<1.0){
         const take=Math.min(b.target.amount, S.botRate*dt);
         b.target.amount-=take; b.load+=take;
-        S.cleaned+=take; S.prog+=take;
+        S.cleaned+=take*(b.target.mult||1); S.prog+=take;
         S.danger=Math.max(0,S.danger-take*1.05);
         if(Math.random()<0.5) emitParticle(b.target.x,.3,b.target.z);
         const bs=b.target.kind==='big'?1.35:1;
@@ -1836,6 +1881,12 @@ const REWARDS=[
     spec:s=>'HOSE ID  '+(1.5+(s.bore)*0.25).toFixed(2)+' in.  →  '+(1.5+(s.bore+1)*0.25).toFixed(2)+' in.',
     apply:s=>{ s.bore++; s.suction*=1.25; } },
 
+  { id:'liquid', name:'Liquid Separator', icon:svgIcon('<path d="M20 4c0 0-8 9-8 14a8 8 0 0 0 16 0c0-5-8-14-8-14z"/><path d="M8 30h24"/><path d="M12 26H6M34 26h-6"/>'),
+    lvl:s=>s.perks.liquid||0, max:1,
+    desc:'A separator ahead of the filters that drops water out of the airstream before it reaches the media. Pick up standing water without plugging the line — and wet recovery is worth double a pound.',
+    spec:s=>'VACUUM WATER SAFELY · DOUBLE RECOVERY',
+    apply:s=>{ s.liquid=1; } },
+
   { id:'series', name:'Series 2000 Hose', icon:svgIcon('<path d="M4 22c5 0 5-8 10-8s5 8 10 8 5-8 10-8"/><path d="M8 14.5l2 3M14 13l2 3M20 20.5l2 3M26 13.5l2 3"/><path d="M4 28h32"/>'),
     lvl:s=>s.perks.series||0, max:1,
     desc:'Crush-resistant hose with a steel-reinforced helix. A loaded lift truck can roll straight over it and you keep vacuuming — which is the whole reason we stock it.',
@@ -1910,6 +1961,7 @@ function pickThree(){
     if(r.lvl(S)===0) w=5;
     if(r.id==='norris') w=9;
     if(r.id==='series') w=S.forkRuns>0? 8:2;   // sells itself once you've seen a truck
+    if(r.id==='liquid') w=PILES.some(p=>p.kind==='water')? 8:3;
     if(r.id==='fiber' && S.fiber===0 && PILES.some(p=>p.kind==='high'||p.kind==='rafter')) w=9;
     if(r.id==='drop' && S.dropCount<=3) w=6;
     for(let i=0;i<w;i++) weighted.push(r);
@@ -2012,9 +2064,10 @@ function drawMap(){
   mg.strokeStyle='#F2B01E'; mg.lineWidth=1; mg.strokeRect(mx(bx)-4.5,mz(bz)-4.5,9,9);
   PILES.forEach(p=>{
     const r=1.4+p.amount*1.1;
-    mg.fillStyle = p.spill? 'rgba(255,106,19,.95)'
+    mg.fillStyle = p.kind==='water'? 'rgba(80,160,235,.95)'
       : (p.kind==='high'||p.kind==='rafter'? 'rgba(191,228,255,.9)'
-      : (p.kind==='raised'? 'rgba(255,203,130,.9)':'rgba(180,168,146,.85)'));
+      : (p.kind==='raised'? 'rgba(255,203,130,.9)'
+      : (p.tint? p.tint.map : 'rgba(180,168,146,.85)')));
     mg.beginPath(); mg.arc(mx(p.x),mz(p.z),r,0,7); mg.fill();
   });
   mg.fillStyle='#3DDD5A'; mg.fillRect(mx(EXIT.x)-3,mz(EXIT.z)-3,6,6);
@@ -2756,6 +2809,11 @@ function step(dt){
       if(d<r) cands.push({p:p,d:d});
     }
     cands.sort((a,b)=>a.d-b.d);
+    // water in the airstream plugs the line unless a separator is fitted
+    if(!S.liquid){
+      const wet=cands.find(c=>c.p.kind==='water');
+      if(wet){ plugLine(); cands.length=0; }
+    }
     const n=Math.min(heads,cands.length);
     for(let i=0;i<n;i++){
       const p=cands[i].p;
@@ -2764,7 +2822,7 @@ function step(dt){
       if(p.kind==='raised') rate*=(0.8+S.diver*0.2);
       if(burst) rate*=10;
       const take=Math.min(p.amount, rate*dt);
-      p.amount-=take; S.cleaned+=take; S.prog+=take;
+      p.amount-=take; S.cleaned+=take*(p.mult||1); S.prog+=take;
       S.danger=Math.max(0,S.danger-take*1.05);
       if(Math.random()<0.85) emitParticle(p.x,p.y+.3,p.z);
       const bs = p.kind==='big'?1.35 : (p.kind==='raised'?.8:1);
@@ -2790,7 +2848,7 @@ function step(dt){
       if(p.kind!=='high' && p.kind!=='rafter') continue;
       if(Math.hypot(p.x-P.x,p.z-P.z)>FIBER_R) continue;
       const take=Math.min(p.amount,2.4*dt);
-      p.amount-=take; S.cleaned+=take; S.prog+=take;
+      p.amount-=take; S.cleaned+=take*(p.mult||1); S.prog+=take;
       S.danger=Math.max(0,S.danger-take*1.05);
       if(Math.random()<0.9) emitParticle(p.x,p.y+.3,p.z);
       p.g.scale.setScalar(clamp(p.amount/p.max,0,1)*.76+.24);
@@ -2836,10 +2894,12 @@ function step(dt){
     if(BAG.tilt.rotation.z>=Math.PI/2 && !S.bagSpilled){ S.bagSpilled=true; bulkBagSpill(); }
   }
 
-  const ramp=1+S.t/SHIFT*0.7;
+  // the plant settles in gently: 20% less dust for the first five minutes
+  const early=S.t<300? 0.8 : 1;
+  const ramp=(1+S.t/SHIFT*0.7)*early;
   S.pileTimer-=dt*ramp;
   if(S.pileTimer<=0){ spawnPile(); S.pileTimer=rnd(5.8,8.8); }
-  S.spillTimer-=dt;
+  S.spillTimer-=dt*early;
   if(S.spillTimer<=0){ spawnSpill(); S.spillTimer=rnd(26,38); }
 
   let total=0;
@@ -2847,7 +2907,7 @@ function step(dt){
     const p=PILES[i];
     // only floor dust keeps accumulating; elevated deposits sit where they are
     if((p.kind==='floor'||p.kind==='big') && p.amount<p.max*1.5) p.amount+=dt*0.013*S.growMul;
-    total+=p.amount;
+    if(p.kind!=='water') total+=p.amount;      // water is a hazard to the hose, not to the plant
     if(p.ring) p.ring.material.opacity=.35+Math.sin(S.t*4+i)*.22;
   }
   const dhaCut=Math.pow(0.78,S.dha)*S.dangerMul;
@@ -2904,6 +2964,7 @@ globalFetch().then(()=>renderBoard('startBoard',5));   // swap in the global boa
 if(location.search.indexOf('debug')>=0){
   window.__G={get S(){return S;},get P(){return P;},get PILES(){return PILES;},
               get DROPS(){return DROPS;},get nodeCount(){return nodeCount;},keys:keys,
+              get OBST(){return OBST;},get ROUTES(){return ROUTES;},
               step:step,tryConnect:tryConnect,startGame:startGame};
 }
 requestAnimationFrame(frame);
