@@ -292,12 +292,12 @@
       <div><h3>Controls</h3><ul>
         <li><b><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></b> walk &mdash; you turn as you go, and the wand holds that direction</li>
         <li><b><kbd>E</kbd></b> connect at a drop &mdash; and walk back to it to unplug</li>
-        <li><b>Hold click</b> or <b><kbd>Space</kbd></b> to vacuum</li>
+        <li>Suction runs the whole time you're plugged in &mdash; just drive the wand</li>
         <li><b><kbd>Q</kbd></b> and <b><kbd>R</kbd></b> fire the Suck Norris and FiberLight, once earned</li>
         <li><b><kbd>M</kbd></b> mutes &mdash; <b><kbd>P</kbd></b> pauses &mdash; <b><kbd>Esc</kbd></b> ends the shift</li>
       </ul></div>
       <div><h3>The job</h3><ul>
-        <li>Suction only runs while you're <b>plugged into a drop</b>.</li>
+        <li>Suction runs continuously while you're <b>plugged into a drop</b>.</li>
         <li>Walk too far and the hose goes <b>taut</b> &mdash; it won't stretch.</li>
         <li>Every pile left on the floor drives the <b>dust level</b> up. <b>Red dust</b> pays best.</li>
         <li><b>Blue water</b> plugs the line unless you've fitted a <b>Liquid Separator</b>.</li>
@@ -2787,7 +2787,8 @@ function step(dt){
   }
 
   /* ---------- vacuuming ---------- */
-  const wantVac=!stunned && (mouseDown||keys[' ']);
+  // the unit runs whenever the hose is coupled — no trigger to hold
+  const wantVac=!stunned;
   S.vacuuming = wantVac && S.connected>=0;
   humSet(S.vacuuming?1:(S.connected>=0?.28:0));
 
@@ -2805,6 +2806,8 @@ function step(dt){
       if(p.kind==='raised' && S.diver===0) continue;
       let r=baseRange;
       if(p.kind==='raised') r+=1.25;
+      // suction never stops now, so water only counts with the wand right in it
+      if(p.kind==='water') r=burst? 1.9 : 1.3;
       const d=Math.hypot(p.x-NOZZLE.x, p.z-NOZZLE.z);
       if(d<r) cands.push({p:p,d:d});
     }
